@@ -1,5 +1,6 @@
 """CLI integration tests."""
 
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,22 +29,24 @@ def test_ping_prints_orderbook_summary(
     runner: CliRunner, mock_client: MagicMock
 ) -> None:
     """Ping prints the number of bids and asks from the order book."""
-    price = HashratePrice(sats=Sats(100), per=Hashrate(1, HashUnit.EH, TimeUnit.DAY))
+    price = HashratePrice(
+        sats=Sats(100), per=Hashrate(Decimal("1"), HashUnit.EH, TimeUnit.DAY)
+    )
     mock_client.get_orderbook.return_value = OrderBook(
         bids=[
             BidItem(
                 price=price,
                 amount_sat=AmountSat(50),
-                hr_matched_ph=Hashrate(1.0, HashUnit.PH, TimeUnit.SECOND),
-                speed_limit_ph=Hashrate(0, HashUnit.PH, TimeUnit.SECOND),
+                hr_matched_ph=Hashrate(Decimal("1.0"), HashUnit.PH, TimeUnit.SECOND),
+                speed_limit_ph=Hashrate(Decimal("0"), HashUnit.PH, TimeUnit.SECOND),
             )
         ]
         * 10,
         asks=[
             AskItem(
                 price=price,
-                hr_matched_ph=Hashrate(0.5, HashUnit.PH, TimeUnit.SECOND),
-                hr_available_ph=Hashrate(2.0, HashUnit.PH, TimeUnit.SECOND),
+                hr_matched_ph=Hashrate(Decimal("0.5"), HashUnit.PH, TimeUnit.SECOND),
+                hr_available_ph=Hashrate(Decimal("2.0"), HashUnit.PH, TimeUnit.SECOND),
             )
         ]
         * 4,

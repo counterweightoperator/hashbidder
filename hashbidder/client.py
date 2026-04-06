@@ -1,7 +1,9 @@
 """Braiins Hashpower API client."""
 
+import json
 from dataclasses import dataclass
-from typing import NewType
+from decimal import Decimal
+from typing import Any, NewType
 
 import httpx
 
@@ -72,13 +74,16 @@ class BraiinsClient:
         """
         response = httpx.get(f"{self._base_url}/spot/orderbook", timeout=self._timeout)
         response.raise_for_status()
-        data = response.json()
+        # Parse JSON with Decimal for floats to avoid float precision loss.
+        data: dict[str, list[dict[str, Any]]] = json.loads(
+            response.text, parse_float=Decimal
+        )
         return OrderBook(
             bids=[
                 BidItem(
                     price=HashratePrice(
                         sats=Sats(int(item["price_sat"])),
-                        per=Hashrate(1, HashUnit.EH, TimeUnit.DAY),
+                        per=Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY),
                     ),
                     amount_sat=AmountSat(int(item["amount_sat"])),
                     hr_matched_ph=Hashrate(
@@ -94,7 +99,7 @@ class BraiinsClient:
                 AskItem(
                     price=HashratePrice(
                         sats=Sats(int(item["price_sat"])),
-                        per=Hashrate(1, HashUnit.EH, TimeUnit.DAY),
+                        per=Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY),
                     ),
                     hr_matched_ph=Hashrate(
                         item["hr_matched_ph"], HashUnit.PH, TimeUnit.SECOND

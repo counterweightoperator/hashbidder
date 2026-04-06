@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import decimal
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import Enum
 
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
+
+# Number of significant digits used for all hashrate arithmetic.
+# Enough to span the full range of hash units (H to EH = 18 orders of magnitude)
+# with ~10 digits of meaningful precision on top.
+HASHRATE_PRECISION = 28
+
+decimal.getcontext().prec = HASHRATE_PRECISION
+
+# Tolerance for comparisons that involve multiple arithmetic steps.
+# Derived from the precision, leaving 4 digits of slack for accumulated rounding.
+HASHRATE_TOLERANCE = Decimal(f"1E-{HASHRATE_PRECISION - 4}")
 
 
 class HashUnit(Enum):
@@ -31,7 +44,7 @@ class Hashrate:
         time_unit: The time period denominator (e.g. per second, per day).
     """
 
-    value: float
+    value: Decimal
     hash_unit: HashUnit
     time_unit: TimeUnit
 
@@ -39,8 +52,10 @@ class Hashrate:
         if self.value < 0:
             raise ValueError(f"Hashrate must be non-negative, got {self.value}")
 
-    def _as_hashes_per_second(self) -> float:
-        return self.value * self.hash_unit.value / self.time_unit.value
+    def _as_hashes_per_second(self) -> Decimal:
+        return (
+            self.value * Decimal(self.hash_unit.value) / Decimal(self.time_unit.value)
+        )
 
     def to(self, hash_unit: HashUnit, time_unit: TimeUnit) -> Hashrate:
         """Convert to a different unit and time period.
@@ -54,13 +69,14 @@ class Hashrate:
         """
         hps = self._as_hashes_per_second()
         return Hashrate(
-            value=hps * time_unit.value / hash_unit.value,
+            value=hps * Decimal(time_unit.value) / Decimal(hash_unit.value),
             hash_unit=hash_unit,
             time_unit=time_unit,
         )
 
     def __str__(self) -> str:
-        return f"{self.value} {self.hash_unit.name}/{self.time_unit.name.capitalize()}"
+        unit = f"{self.hash_unit.name}/{self.time_unit.name.capitalize()}"
+        return f"{self.value.normalize()} {unit}"
 
     def __add__(self, other: Hashrate) -> Hashrate:
         return Hashrate(
