@@ -1,6 +1,7 @@
 """Braiins Hashpower API client."""
 
 import json
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Protocol
@@ -10,6 +11,8 @@ import httpx
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
+
+logger = logging.getLogger(__name__)
 
 API_BASE = httpx.URL("https://hashpower.braiins.com/v1")
 DEFAULT_TIMEOUT = 10.0
@@ -80,10 +83,11 @@ class BraiinsClient:
             httpx.HTTPStatusError: If the server returns an error status.
             httpx.RequestError: If a network-level error occurs.
         """
-        response = httpx.get(
-            f"{self._base_url}{self._SPOT_ORDERBOOK_PATH}", timeout=self._timeout
-        )
+        url = f"{self._base_url}{self._SPOT_ORDERBOOK_PATH}"
+        logger.debug("GET %s", url)
+        response = httpx.get(url, timeout=self._timeout)
         response.raise_for_status()
+        logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         data: dict[str, list[dict[str, Any]]] = json.loads(
             response.text, parse_float=Decimal
         )
