@@ -3,23 +3,27 @@
 import click
 import httpx
 
-API_BASE = "https://hashpower.braiins.com/v1"
+from hashbidder import use_cases
+from hashbidder.client import API_BASE, BraiinsClient
 
 
 @click.group()
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """Hashbidder CLI."""
+    ctx.obj = BraiinsClient(API_BASE)
+
 
 @cli.command()
-def ping() -> None:
+@click.pass_obj
+def ping(client: BraiinsClient) -> None:
     """Check connectivity to the Braiins Hashpower API.
 
     Hits the public /spot/orderbook endpoint and prints a summary
     to confirm the API is reachable.
     """
     try:
-        response = httpx.get(f"{API_BASE}/spot/orderbook", timeout=10)
-        response.raise_for_status()
+        result = use_cases.ping(client)
     except httpx.TimeoutException:
         raise click.ClickException("Request timed out.")
     except httpx.HTTPStatusError as e:
@@ -27,11 +31,13 @@ def ping() -> None:
     except httpx.RequestError as e:
         raise click.ClickException(f"Connection error: {e}")
 
-    data = response.json()
-    bids = len(data.get("bids", []))
-    asks = len(data.get("asks", []))
-    click.echo(f"OK — order book: {bids} bids, {asks} asks")
+    click.echo(f"OK — order book: {result.bids} bids, {result.asks} asks")
+
+
+def main() -> None:
+    """Entry point for the hashbidder CLI."""
+    cli()
 
 
 if __name__ == "__main__":
-    cli()
+    main()
