@@ -6,7 +6,9 @@ import pytest
 from click.testing import CliRunner
 
 from hashbidder.client import AmountSat, AskItem, BidItem, OrderBook
-from hashbidder.hashrate import Hashrate, HashratePrice, HashUnit, Sats, TimeUnit
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.main import cli
 
 

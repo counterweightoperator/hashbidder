@@ -2,13 +2,9 @@
 
 import pytest
 
-from hashbidder.hashrate import (
-    Hashrate,
-    HashratePrice,
-    HashUnit,
-    Sats,
-    TimeUnit,
-)
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
 
 
 class TestHashrate:

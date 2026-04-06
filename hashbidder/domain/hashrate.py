@@ -1,12 +1,12 @@
-"""Hashrate domain types with unit and time range support."""
+"""Hashrate domain types with hash unit support."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import NewType
 
-Sats = NewType("Sats", int)
+from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
 
 
 class HashUnit(Enum):
@@ -19,16 +19,6 @@ class HashUnit(Enum):
     TH = 1_000_000_000_000
     PH = 1_000_000_000_000_000
     EH = 1_000_000_000_000_000_000
-
-
-class TimeUnit(Enum):
-    """Time period denominator for hashrate."""
-
-    SECOND = 1
-    MINUTE = 60
-    HOUR = 3_600
-    DAY = 86_400
-    MONTH = 2_592_000
 
 
 @dataclass(frozen=True)

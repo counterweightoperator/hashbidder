@@ -5,7 +5,9 @@ from typing import NewType
 
 import httpx
 
-from hashbidder.hashrate import Hashrate, HashratePrice, HashUnit, Sats, TimeUnit
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
 
 AmountSat = NewType("AmountSat", int)
 
