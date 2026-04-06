@@ -6,11 +6,31 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.3.2",
+    "httpx>=0.28.1",
 ]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+strict = true
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "mypy>=1.20.0",
+    "ruff>=0.15.9",
+]
+
 [project.scripts]
-hashbidder = "hashbidder:cli"
+hashbidder = "hashbidder.main:cli"
+
