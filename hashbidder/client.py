@@ -3,15 +3,13 @@
 import json
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, NewType
+from typing import Any
 
 import httpx
 
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-
-AmountSat = NewType("AmountSat", int)
 
 API_BASE = httpx.URL("https://hashpower.braiins.com/v1")
 DEFAULT_TIMEOUT = 10.0
@@ -22,7 +20,7 @@ class BidItem:
     """A single bid level in the order book."""
 
     price: HashratePrice
-    amount_sat: AmountSat
+    amount_sat: Sats
     hr_matched_ph: Hashrate
     speed_limit_ph: Hashrate
 
@@ -40,12 +38,14 @@ class AskItem:
 class OrderBook:
     """Snapshot of the spot market order book."""
 
-    bids: list[BidItem]
-    asks: list[AskItem]
+    bids: tuple[BidItem, ...]
+    asks: tuple[AskItem, ...]
 
 
 class BraiinsClient:
     """HTTP client for the Braiins Hashpower API."""
+
+    _SPOT_ORDERBOOK_PATH = "/spot/orderbook"
 
     def __init__(
         self,
@@ -72,20 +72,21 @@ class BraiinsClient:
             httpx.HTTPStatusError: If the server returns an error status.
             httpx.RequestError: If a network-level error occurs.
         """
-        response = httpx.get(f"{self._base_url}/spot/orderbook", timeout=self._timeout)
+        response = httpx.get(
+            f"{self._base_url}{self._SPOT_ORDERBOOK_PATH}", timeout=self._timeout
+        )
         response.raise_for_status()
-        # Parse JSON with Decimal for floats to avoid float precision loss.
         data: dict[str, list[dict[str, Any]]] = json.loads(
             response.text, parse_float=Decimal
         )
         return OrderBook(
-            bids=[
+            bids=tuple(
                 BidItem(
                     price=HashratePrice(
                         sats=Sats(int(item["price_sat"])),
                         per=Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY),
                     ),
-                    amount_sat=AmountSat(int(item["amount_sat"])),
+                    amount_sat=Sats(int(item["amount_sat"])),
                     hr_matched_ph=Hashrate(
                         item["hr_matched_ph"], HashUnit.PH, TimeUnit.SECOND
                     ),
@@ -94,8 +95,8 @@ class BraiinsClient:
                     ),
                 )
                 for item in data["bids"]
-            ],
-            asks=[
+            ),
+            asks=tuple(
                 AskItem(
                     price=HashratePrice(
                         sats=Sats(int(item["price_sat"])),
@@ -109,5 +110,5 @@ class BraiinsClient:
                     ),
                 )
                 for item in data["asks"]
-            ],
+            ),
         )

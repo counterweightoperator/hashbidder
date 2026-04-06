@@ -23,7 +23,7 @@ def ping(client: BraiinsClient) -> None:
     to confirm the API is reachable.
     """
     try:
-        result = use_cases.ping(client)
+        book = use_cases.ping(client)
     except httpx.TimeoutException:
         raise click.ClickException("Request timed out.")
     except httpx.HTTPStatusError as e:
@@ -31,7 +31,7 @@ def ping(client: BraiinsClient) -> None:
     except httpx.RequestError as e:
         raise click.ClickException(f"Connection error: {e}")
 
-    click.echo(f"OK — order book: {result.bids} bids, {result.asks} asks")
+    click.echo(f"OK — order book: {len(book.bids)} bids, {len(book.asks)} asks")
 
 
 def main() -> None:

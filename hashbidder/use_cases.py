@@ -1,29 +1,15 @@
 """Hashbidder use cases."""
 
-from dataclasses import dataclass
-
-from hashbidder.client import BraiinsClient
+from hashbidder.client import BraiinsClient, OrderBook
 
 
-@dataclass
-class OrderBookSummary:
-    """Summary of the current spot order book."""
-
-    bids: int
-    asks: int
-
-
-def ping(client: BraiinsClient) -> OrderBookSummary:
-    """Fetch and summarize the current order book.
+def ping(client: BraiinsClient) -> OrderBook:
+    """Fetch the current order book.
 
     Args:
         client: The Braiins API client to use.
 
     Returns:
-        A summary with the count of active bids and asks.
+        The current spot order book snapshot.
     """
-    data = client.get_orderbook()
-    return OrderBookSummary(
-        bids=len(data.bids),
-        asks=len(data.asks),
-    )
+    return client.get_orderbook()
