@@ -20,10 +20,32 @@ uv run hashbidder --help
 
 `uv` will automatically create a virtual environment and install dependencies on first run — no manual setup needed.
 
-As a first proper command, you can try `hashbidder ping`. It will try to fetch the current state of the orderbook and count for you how many orders are active.
+## Configuration
+
+Copy the example env file and fill in your Braiins API key:
+
+```sh
+cp .env.example .env
+```
+
+The API key is required for authenticated commands (e.g. `bids`). Public commands like `ping` work without it.
+
+## Commands
 
 ```sh
 $ uv run hashbidder ping
 OK — order book: 70 bids, 8 asks
+
+$ uv run hashbidder bids
+B123456789        ACTIVE  price=500 sat/1 EH/Day  limit=5.0 PH/Second  ...
+```
+
+Use `-v` for debug logging or `--log-file path` to log to a file.
+
+## Tests
+
+```sh
+make check    # format + lint + typecheck + test
+make test     # tests only
 ```
 

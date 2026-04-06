@@ -1,14 +1,18 @@
 """Hashbidder CLI."""
 
 import logging
+import os
 import sys
 from pathlib import Path
 
 import click
 import httpx
+from dotenv import load_dotenv
 
 from hashbidder import use_cases
 from hashbidder.client import API_BASE, BraiinsClient, HashpowerClient
+from hashbidder.domain.hashrate import HashUnit
+from hashbidder.domain.time_unit import TimeUnit
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
@@ -48,9 +52,11 @@ def _setup_logging(verbose: bool, log_file: Path | None) -> None:
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool, log_file: Path | None) -> None:
     """Hashbidder CLI."""
+    load_dotenv()
     _setup_logging(verbose, log_file)
     if ctx.obj is None:
-        ctx.obj = BraiinsClient(API_BASE)
+        api_key = os.environ.get("BRAIINS_API_KEY")
+        ctx.obj = BraiinsClient(API_BASE, api_key=api_key)
 
 
 @cli.command()
@@ -73,6 +79,37 @@ def ping(client: HashpowerClient) -> None:
 
     logger.debug("Order book: %d bids, %d asks", len(book.bids), len(book.asks))
     click.echo(f"OK — order book: {len(book.bids)} bids, {len(book.asks)} asks")
+
+
+@cli.command()
+@click.pass_obj
+def bids(client: HashpowerClient) -> None:
+    """List your currently active bids."""
+    logger.debug("Fetching current bids")
+    try:
+        current_bids = use_cases.get_current_bids(client)
+    except ValueError as e:
+        raise click.ClickException(str(e))
+    except httpx.TimeoutException:
+        raise click.ClickException("Request timed out.")
+    except httpx.HTTPStatusError as e:
+        raise click.ClickException(f"HTTP {e.response.status_code}: {e.response.text}")
+    except httpx.RequestError as e:
+        raise click.ClickException(f"Connection error: {e}")
+
+    if not current_bids:
+        click.echo("No active bids.")
+        return
+
+    for bid in current_bids:
+        price_per_phs = bid.price.to(HashUnit.PH, TimeUnit.DAY)
+        click.echo(
+            f"{bid.id}  {bid.status.name:>14}  "
+            f"price={price_per_phs}  "
+            f"limit={bid.speed_limit_ph}  "
+            f"remaining={bid.amount_remaining_sat} sat  "
+            f"progress={bid.progress}"
+        )
 
 
 def main() -> None:

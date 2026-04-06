@@ -123,5 +123,24 @@ class HashratePrice:
                 f"HashratePrice must be non-negative, got {self.sats} sats"
             )
 
+    def to(self, hash_unit: HashUnit, time_unit: TimeUnit) -> HashratePrice:
+        """Convert to a price per different hashrate unit.
+
+        Scales the sats proportionally so the price per hash-per-second
+        remains equivalent.
+
+        Args:
+            hash_unit: Target hash unit.
+            time_unit: Target time unit.
+
+        Returns:
+            An equivalent HashratePrice in the new units.
+        """
+        old_hps = self.per._as_hashes_per_second()
+        new_per = Hashrate(Decimal(1), hash_unit, time_unit)
+        new_hps = new_per._as_hashes_per_second()
+        scaled_sats = Decimal(self.sats) * new_hps / old_hps
+        return HashratePrice(sats=Sats(int(scaled_sats)), per=new_per)
+
     def __str__(self) -> str:
         return f"{self.sats} sat/{self.per}"
