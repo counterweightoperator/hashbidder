@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from hashbidder import use_cases
 from hashbidder.client import API_BASE, BraiinsClient, HashpowerClient
+from hashbidder.config import load_config
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 
@@ -110,6 +111,34 @@ def bids(client: HashpowerClient) -> None:
             f"remaining={bid.amount_remaining_sat} sat  "
             f"progress={bid.progress}"
         )
+
+
+@cli.command("set-bids")
+@click.option(
+    "--bid-config",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to the TOML bid config file.",
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Print what would change without executing."
+)
+@click.pass_obj
+def set_bids(client: HashpowerClient, bid_config: Path, dry_run: bool) -> None:
+    """Set bids to match a config file."""
+    try:
+        config = load_config(bid_config)
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+    click.echo(f"Loaded config: {len(config.bids)} bid(s)")
+    click.echo(f"  default_amount: {config.default_amount} sat")
+    click.echo(f"  upstream: {config.upstream.url} / {config.upstream.identity}")
+    for i, bid in enumerate(config.bids):
+        click.echo(f"  bid {i}: price={bid.price}, speed_limit={bid.speed_limit}")
+
+    if not dry_run:
+        raise NotImplementedError("Only --dry-run is supported for now.")
 
 
 def main() -> None:

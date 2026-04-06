@@ -1,6 +1,7 @@
 """CLI integration tests."""
 
 from decimal import Decimal
+from pathlib import Path
 
 from click.testing import CliRunner
 
@@ -106,3 +107,74 @@ def test_bids_no_active_bids() -> None:
 
     assert result.exit_code == 0
     assert result.output == "No active bids.\n"
+
+
+def test_set_bids_loads_config(tmp_path: Path) -> None:
+    """set-bids command loads and echoes the config in dry-run mode."""
+    config_file = tmp_path / "bids.toml"
+    config_file.write_text("""\
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 5.0
+
+[[bids]]
+price_sat_per_ph_day = 300
+speed_limit_ph_s = 10.0
+""")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["set-bids", "--bid-config", str(config_file), "--dry-run"],
+        obj=FakeClient(),
+    )
+
+    assert result.exit_code == 0
+    assert "2 bid(s)" in result.output
+    assert "100000 sat" in result.output
+    assert "pool.example.com" in result.output
+    assert "500 sat" in result.output
+    assert "300 sat" in result.output
+
+
+def test_set_bids_invalid_config(tmp_path: Path) -> None:
+    """set-bids command reports error for invalid config."""
+    config_file = tmp_path / "bad.toml"
+    config_file.write_text("not valid toml [[[")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["set-bids", "--bid-config", str(config_file), "--dry-run"],
+        obj=FakeClient(),
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid TOML" in result.output
+
+
+def test_set_bids_without_dry_run(tmp_path: Path) -> None:
+    """set-bids without --dry-run raises NotImplementedError."""
+    config_file = tmp_path / "bids.toml"
+    config_file.write_text("""\
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["set-bids", "--bid-config", str(config_file)],
+        obj=FakeClient(),
+    )
+
+    assert result.exit_code != 0

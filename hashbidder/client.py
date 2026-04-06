@@ -12,6 +12,7 @@ import httpx
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
+from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,14 @@ class OrderBook:
     asks: tuple[AskItem, ...]
 
 
+@dataclass(frozen=True)
+class Upstream:
+    """Upstream pool specification for a bid."""
+
+    url: StratumUrl
+    identity: str
+
+
 class BidStatus(Enum):
     """Status of a user's spot bid."""
 
@@ -71,6 +80,7 @@ class UserBid:
     status: BidStatus
     progress: Progress
     amount_remaining_sat: Sats
+    upstream: Upstream | None = None
 
 
 class HashpowerClient(Protocol):
@@ -209,6 +219,12 @@ class BraiinsClient:
                 amount_remaining_sat=Sats(
                     int(item["state_estimate"]["amount_remaining_sat"])
                 ),
+                upstream=Upstream(
+                    url=StratumUrl(item["bid"]["dest_upstream"]["url"]),
+                    identity=item["bid"]["dest_upstream"]["identity"],
+                )
+                if "dest_upstream" in item["bid"]
+                else None,
             )
             for item in data["items"]
         )
