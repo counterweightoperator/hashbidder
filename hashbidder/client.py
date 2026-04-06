@@ -3,7 +3,7 @@
 import json
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 
@@ -40,6 +40,14 @@ class OrderBook:
 
     bids: tuple[BidItem, ...]
     asks: tuple[AskItem, ...]
+
+
+class HashpowerClient(Protocol):
+    """Protocol for hashpower market clients."""
+
+    def get_orderbook(self) -> OrderBook:
+        """Fetch the current spot order book."""
+        ...
 
 
 class BraiinsClient:

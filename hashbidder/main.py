@@ -4,19 +4,20 @@ import click
 import httpx
 
 from hashbidder import use_cases
-from hashbidder.client import API_BASE, BraiinsClient
+from hashbidder.client import API_BASE, BraiinsClient, HashpowerClient
 
 
 @click.group()
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Hashbidder CLI."""
-    ctx.obj = BraiinsClient(API_BASE)
+    if ctx.obj is None:
+        ctx.obj = BraiinsClient(API_BASE)
 
 
 @cli.command()
 @click.pass_obj
-def ping(client: BraiinsClient) -> None:
+def ping(client: HashpowerClient) -> None:
     """Check connectivity to the Braiins Hashpower API.
 
     Hits the public /spot/orderbook endpoint and prints a summary

@@ -1,9 +1,7 @@
 """CLI integration tests."""
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
-import pytest
 from click.testing import CliRunner
 
 from hashbidder.client import AskItem, BidItem, OrderBook
@@ -13,26 +11,28 @@ from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.main import cli
 
 
-@pytest.fixture
-def runner() -> CliRunner:
-    """Return a Click test runner."""
-    return CliRunner()
+class FakeClient:
+    """In-memory hashpower client for testing."""
+
+    def __init__(self, orderbook: OrderBook) -> None:
+        """Initialize with a canned order book.
+
+        Args:
+            orderbook: The order book to return from get_orderbook.
+        """
+        self._orderbook = orderbook
+
+    def get_orderbook(self) -> OrderBook:
+        """Return the canned order book."""
+        return self._orderbook
 
 
-@pytest.fixture
-def mock_client() -> MagicMock:
-    """Return a mock BraiinsClient."""
-    return MagicMock()
-
-
-def test_ping_prints_orderbook_summary(
-    runner: CliRunner, mock_client: MagicMock
-) -> None:
+def test_ping_prints_orderbook_summary() -> None:
     """Ping prints the number of bids and asks from the order book."""
     price = HashratePrice(
         sats=Sats(100), per=Hashrate(Decimal("1"), HashUnit.EH, TimeUnit.DAY)
     )
-    mock_client.get_orderbook.return_value = OrderBook(
+    book = OrderBook(
         bids=(
             BidItem(
                 price=price,
@@ -52,8 +52,8 @@ def test_ping_prints_orderbook_summary(
         * 4,
     )
 
-    with patch("hashbidder.main.BraiinsClient", return_value=mock_client):
-        result = runner.invoke(cli, ["ping"])
+    runner = CliRunner()
+    result = runner.invoke(cli, ["ping"], obj=FakeClient(book))
 
     assert result.exit_code == 0
     assert result.output == "OK — order book: 10 bids, 4 asks\n"

@@ -1,13 +1,13 @@
 """Hashbidder use cases."""
 
-from hashbidder.client import BraiinsClient, OrderBook
+from hashbidder.client import HashpowerClient, OrderBook
 
 
-def ping(client: BraiinsClient) -> OrderBook:
+def ping(client: HashpowerClient) -> OrderBook:
     """Fetch the current order book.
 
     Args:
-        client: The Braiins API client to use.
+        client: The hashpower market client to use.
 
     Returns:
         The current spot order book snapshot.
