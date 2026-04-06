@@ -24,6 +24,6 @@ def ping(client: BraiinsClient) -> OrderBookSummary:
     """
     data = client.get_orderbook()
     return OrderBookSummary(
-        bids=len(data.get("bids", [])),
-        asks=len(data.get("asks", [])),
+        bids=len(data.bids),
+        asks=len(data.asks),
     )

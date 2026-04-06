@@ -1,0 +1,1 @@
+"""Hashbidder test suite."""

@@ -1,32 +1,106 @@
 """Braiins Hashpower API client."""
 
+from dataclasses import dataclass
+from typing import NewType
+
 import httpx
 
-API_BASE = "https://hashpower.braiins.com/v1"
+from hashbidder.hashrate import Hashrate, HashratePrice, HashUnit, Sats, TimeUnit
+
+AmountSat = NewType("AmountSat", int)
+
+API_BASE = httpx.URL("https://hashpower.braiins.com/v1")
+DEFAULT_TIMEOUT = 10.0
+
+
+@dataclass
+class BidItem:
+    """A single bid level in the order book."""
+
+    price: HashratePrice
+    amount_sat: AmountSat
+    hr_matched_ph: Hashrate
+    speed_limit_ph: Hashrate
+
+
+@dataclass
+class AskItem:
+    """A single ask level in the order book."""
+
+    price: HashratePrice
+    hr_matched_ph: Hashrate
+    hr_available_ph: Hashrate
+
+
+@dataclass
+class OrderBook:
+    """Snapshot of the spot market order book."""
+
+    bids: list[BidItem]
+    asks: list[AskItem]
 
 
 class BraiinsClient:
     """HTTP client for the Braiins Hashpower API."""
 
-    def __init__(self, base_url: str = API_BASE) -> None:
+    def __init__(
+        self,
+        base_url: httpx.URL = API_BASE,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> None:
         """Initialize the client.
 
         Args:
             base_url: The base URL of the Braiins Hashpower API.
+            timeout: Request timeout in seconds.
         """
         self._base_url = base_url
+        self._timeout = timeout
 
-    def get_orderbook(self) -> dict[str, list[dict[str, object]]]:
+    def get_orderbook(self) -> OrderBook:
         """Fetch the current spot order book.
 
         Returns:
-            The order book payload with bids and asks.
+            A structured snapshot of the order book with bids and asks.
 
         Raises:
             httpx.TimeoutException: If the request times out.
             httpx.HTTPStatusError: If the server returns an error status.
             httpx.RequestError: If a network-level error occurs.
         """
-        response = httpx.get(f"{self._base_url}/spot/orderbook", timeout=10)
+        response = httpx.get(f"{self._base_url}/spot/orderbook", timeout=self._timeout)
         response.raise_for_status()
-        return response.json()  # type: ignore[no-any-return]
+        data = response.json()
+        return OrderBook(
+            bids=[
+                BidItem(
+                    price=HashratePrice(
+                        sats=Sats(int(item["price_sat"])),
+                        per=Hashrate(1, HashUnit.EH, TimeUnit.DAY),
+                    ),
+                    amount_sat=AmountSat(int(item["amount_sat"])),
+                    hr_matched_ph=Hashrate(
+                        item["hr_matched_ph"], HashUnit.PH, TimeUnit.SECOND
+                    ),
+                    speed_limit_ph=Hashrate(
+                        item["speed_limit_ph"], HashUnit.PH, TimeUnit.SECOND
+                    ),
+                )
+                for item in data["bids"]
+            ],
+            asks=[
+                AskItem(
+                    price=HashratePrice(
+                        sats=Sats(int(item["price_sat"])),
+                        per=Hashrate(1, HashUnit.EH, TimeUnit.DAY),
+                    ),
+                    hr_matched_ph=Hashrate(
+                        item["hr_matched_ph"], HashUnit.PH, TimeUnit.SECOND
+                    ),
+                    hr_available_ph=Hashrate(
+                        item["hr_available_ph"], HashUnit.PH, TimeUnit.SECOND
+                    ),
+                )
+                for item in data["asks"]
+            ],
+        )
