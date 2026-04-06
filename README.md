@@ -19,3 +19,11 @@ uv run hashbidder --help
 ```
 
 `uv` will automatically create a virtual environment and install dependencies on first run — no manual setup needed.
+
+As a first proper command, you can try `hashbidder ping`. It will try to fetch the current state of the orderbook and count for you how many orders are active.
+
+```sh
+$ uv run hashbidder ping
+OK — order book: 70 bids, 8 asks
+```
+
