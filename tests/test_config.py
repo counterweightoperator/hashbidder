@@ -261,6 +261,83 @@ speed_limit_ph_s = 5.0
         with pytest.raises(ValueError, match="price_sat_per_ph_day must be an integer"):
             load_config(path)
 
+    def test_zero_speed_limit_rejected(self, tmp_path: Path) -> None:
+        """Zero speed_limit_ph_s raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 0
+""",
+        )
+        with pytest.raises(ValueError, match="speed_limit_ph_s must be positive"):
+            load_config(path)
+
+    def test_negative_speed_limit_rejected(self, tmp_path: Path) -> None:
+        """Negative speed_limit_ph_s raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = -1.0
+""",
+        )
+        with pytest.raises(ValueError, match="speed_limit_ph_s must be positive"):
+            load_config(path)
+
+    def test_duplicate_bids_allowed(self, tmp_path: Path) -> None:
+        """Duplicate bid entries in config are allowed."""
+        path = _write_toml(
+            tmp_path,
+            """\
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 5.0
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 5.0
+""",
+        )
+        config = load_config(path)
+        assert len(config.bids) == 2
+        assert config.bids[0] == config.bids[1]
+
+    def test_invalid_upstream_url(self, tmp_path: Path) -> None:
+        """Non-stratum upstream URL raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+default_amount_sat = 100000
+
+[upstream]
+url = "http://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        with pytest.raises(ValueError, match="Invalid upstream URL"):
+            load_config(path)
+
     def test_file_not_found(self, tmp_path: Path) -> None:
         """Missing config file raises FileNotFoundError."""
         with pytest.raises(FileNotFoundError):

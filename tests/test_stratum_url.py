@@ -64,6 +64,18 @@ class TestStratumUrl:
         assert a == b
         assert hash(a) == hash(b)
 
+    def test_equality_trailing_slash(self) -> None:
+        """Trailing slash does not affect equality."""
+        a = StratumUrl("stratum+tcp://167.172.107.33:23334")
+        b = StratumUrl("stratum+tcp://167.172.107.33:23334/")
+        assert a == b
+        assert hash(a) == hash(b)
+
+    def test_str_is_normalized(self) -> None:
+        """str() always produces the canonical form without trailing slash."""
+        url = StratumUrl("stratum+tcp://167.172.107.33:23334/")
+        assert str(url) == "stratum+tcp://167.172.107.33:23334"
+
     def test_inequality(self) -> None:
         """Different StratumUrls are not equal."""
         a = StratumUrl("stratum+tcp://pool.example.com:3333")

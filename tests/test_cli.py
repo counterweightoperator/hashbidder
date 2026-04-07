@@ -10,11 +10,13 @@ from hashbidder.client import (
     BidItem,
     BidStatus,
     OrderBook,
+    Upstream,
     UserBid,
 )
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
+from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.main import cli
 
@@ -109,8 +111,8 @@ def test_bids_no_active_bids() -> None:
     assert result.output == "No active bids.\n"
 
 
-def test_set_bids_loads_config(tmp_path: Path) -> None:
-    """set-bids command loads and echoes the config in dry-run mode."""
+def test_set_bids_dry_run_creates_all(tmp_path: Path) -> None:
+    """set-bids with no existing bids creates all config entries."""
     config_file = tmp_path / "bids.toml"
     config_file.write_text("""\
 default_amount_sat = 100000
@@ -136,11 +138,73 @@ speed_limit_ph_s = 10.0
     )
 
     assert result.exit_code == 0
-    assert "2 bid(s)" in result.output
-    assert "100000 sat" in result.output
-    assert "pool.example.com" in result.output
-    assert "500 sat" in result.output
-    assert "300 sat" in result.output
+    assert result.output.count("CREATE:") == 2
+    assert "500 sat/PH/Day" in result.output
+    assert "300 sat/PH/Day" in result.output
+    assert "=== Expected Final State ===" in result.output
+    assert result.output.count("(NEW)") == 2
+
+
+def test_set_bids_dry_run_end_to_end(tmp_path: Path) -> None:
+    """End-to-end dry run with existing bids: edit, cancel, create."""
+    upstream = Upstream(
+        url=StratumUrl("stratum+tcp://pool.example.com:3333"),
+        identity="worker1",
+    )
+    eh_day = Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY)
+
+    existing_bids = (
+        # Matches config entry at 500 sat/PH/Day, 5.0 PH/s — but price
+        # is 400 → edit.
+        UserBid(
+            id="B1",
+            price=HashratePrice(sats=Sats(400_000), per=eh_day),
+            speed_limit_ph=Hashrate(Decimal("5.0"), HashUnit.PH, TimeUnit.SECOND),
+            amount_sat=Sats(200_000),
+            status=BidStatus.ACTIVE,
+            progress=Progress.from_percentage(Decimal("0")),
+            amount_remaining_sat=Sats(200_000),
+            upstream=upstream,
+        ),
+        # No matching config entry (only 1 config bid) → cancel.
+        UserBid(
+            id="B2",
+            price=HashratePrice(sats=Sats(600_000), per=eh_day),
+            speed_limit_ph=Hashrate(Decimal("3.0"), HashUnit.PH, TimeUnit.SECOND),
+            amount_sat=Sats(50_000),
+            status=BidStatus.ACTIVE,
+            progress=Progress.from_percentage(Decimal("0")),
+            amount_remaining_sat=Sats(50_000),
+            upstream=upstream,
+        ),
+    )
+
+    config_file = tmp_path / "bids.toml"
+    config_file.write_text("""\
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 5.0
+""")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["set-bids", "--bid-config", str(config_file), "--dry-run"],
+        obj=FakeClient(current_bids=existing_bids),
+    )
+
+    assert result.exit_code == 0
+    assert "EDIT B1:" in result.output
+    assert "400 \u2192 500 sat/PH/Day" in result.output
+    assert "CANCEL B2:" in result.output
+    assert "=== Expected Final State ===" in result.output
+    assert "(EDITED" in result.output
 
 
 def test_set_bids_invalid_config(tmp_path: Path) -> None:

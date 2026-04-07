@@ -14,6 +14,7 @@ from hashbidder.client import API_BASE, BraiinsClient, HashpowerClient
 from hashbidder.config import load_config
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.formatting import format_plan
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
@@ -131,14 +132,21 @@ def set_bids(client: HashpowerClient, bid_config: Path, dry_run: bool) -> None:
     except ValueError as e:
         raise click.ClickException(str(e))
 
-    click.echo(f"Loaded config: {len(config.bids)} bid(s)")
-    click.echo(f"  default_amount: {config.default_amount} sat")
-    click.echo(f"  upstream: {config.upstream.url} / {config.upstream.identity}")
-    for i, bid in enumerate(config.bids):
-        click.echo(f"  bid {i}: price={bid.price}, speed_limit={bid.speed_limit}")
-
     if not dry_run:
         raise NotImplementedError("Only --dry-run is supported for now.")
+
+    try:
+        result = use_cases.set_bids(client, config)
+    except ValueError as e:
+        raise click.ClickException(str(e))
+    except httpx.TimeoutException:
+        raise click.ClickException("Request timed out.")
+    except httpx.HTTPStatusError as e:
+        raise click.ClickException(f"HTTP {e.response.status_code}: {e.response.text}")
+    except httpx.RequestError as e:
+        raise click.ClickException(f"Connection error: {e}")
+
+    click.echo(format_plan(result.plan, result.skipped_bids))
 
 
 def main() -> None:

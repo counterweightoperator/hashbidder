@@ -83,6 +83,9 @@ def load_config(path: Path) -> SetBidsConfig:
         except InvalidOperation as e:
             raise ValueError(f"Bid {i}: speed_limit_ph_s must be a number") from e
 
+        if speed_raw <= 0:
+            raise ValueError(f"Bid {i}: speed_limit_ph_s must be positive")
+
         bids.append(
             BidConfig(
                 price=HashratePrice(

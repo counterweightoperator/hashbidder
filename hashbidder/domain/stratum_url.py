@@ -58,18 +58,19 @@ class StratumUrl:
         assert self._url.port is not None
         return self._url.port
 
+    def _key(self) -> tuple[str, str, int]:
+        return (self.scheme, self.host, self.port)
+
     def __str__(self) -> str:
-        return str(self._url)
+        return f"{self.scheme}://{self.host}:{self.port}"
 
     def __repr__(self) -> str:
-        return f"StratumUrl({str(self._url)!r})"
+        return f"StratumUrl({str(self)!r})"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, StratumUrl):
-            return str(self._url) == str(other._url)
-        if isinstance(other, str):
-            return str(self._url) == other
+            return self._key() == other._key()
         return NotImplemented
 
     def __hash__(self) -> int:
-        return hash(str(self._url))
+        return hash(self._key())

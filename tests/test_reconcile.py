@@ -276,6 +276,21 @@ class TestReconcile:
         assert plan.creates[0].replaces is bid
         assert plan.creates[0].config is cfg
 
+    def test_all_paused_frozen_with_config_entries(self) -> None:
+        """All bids are PAUSED/FROZEN — config entries become creates, no cancels."""
+        bids = (
+            _user_bid("B1", 500, "5.0", status=BidStatus.PAUSED),
+            _user_bid("B2", 300, "10.0", status=BidStatus.FROZEN),
+        )
+        c1 = _bid_config(500, "5.0")
+        c2 = _bid_config(300, "10.0")
+        plan = reconcile(_config(c1, c2), bids)
+
+        assert len(plan.creates) == 2
+        assert plan.cancels == ()
+        assert plan.edits == ()
+        assert plan.unchanged == ()
+
 
 _MANAGEABLE = frozenset({BidStatus.ACTIVE, BidStatus.CREATED})
 _ALL_STATUSES = list(BidStatus)

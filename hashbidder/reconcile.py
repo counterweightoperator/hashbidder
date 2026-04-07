@@ -13,7 +13,7 @@ from hashbidder.domain.time_unit import TimeUnit
 _PRICE_HASH_UNIT = HashUnit.PH
 _PRICE_TIME_UNIT = TimeUnit.DAY
 
-_MANAGEABLE_STATUSES = frozenset({BidStatus.ACTIVE, BidStatus.CREATED})
+MANAGEABLE_STATUSES = frozenset({BidStatus.ACTIVE, BidStatus.CREATED})
 
 
 class CancelReason(Enum):
@@ -105,7 +105,7 @@ def reconcile(
     Returns:
         A plan describing edits, creates, cancels, and unchanged bids.
     """
-    manageable_bids = [b for b in current_bids if b.status in _MANAGEABLE_STATUSES]
+    manageable_bids = [b for b in current_bids if b.status in MANAGEABLE_STATUSES]
     manageable_bids.sort(key=lambda b: b.amount_remaining_sat, reverse=True)
 
     unmatched_configs = list(range(len(config.bids)))
