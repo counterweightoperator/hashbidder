@@ -1,8 +1,10 @@
 """Hashbidder CLI."""
 
+import contextlib
 import logging
 import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import click
@@ -19,6 +21,23 @@ from hashbidder.formatting import format_plan
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 logger = logging.getLogger("hashbidder")
+
+
+@contextlib.contextmanager
+def _api_errors() -> Iterator[None]:
+    """Translate httpx/ValueError exceptions into ClickExceptions."""
+    try:
+        yield
+    except ValueError as e:
+        raise click.ClickException(str(e)) from e
+    except httpx.TimeoutException:
+        raise click.ClickException("Request timed out.")
+    except httpx.HTTPStatusError as e:
+        raise click.ClickException(
+            f"HTTP {e.response.status_code}: {e.response.text}"
+        ) from e
+    except httpx.RequestError as e:
+        raise click.ClickException(f"Connection error: {e}") from e
 
 
 def _setup_logging(verbose: bool, log_file: Path | None) -> None:
@@ -70,15 +89,8 @@ def ping(client: HashpowerClient) -> None:
     to confirm the API is reachable.
     """
     logger.debug("Fetching order book")
-    try:
+    with _api_errors():
         book = use_cases.ping(client)
-    except httpx.TimeoutException:
-        raise click.ClickException("Request timed out.")
-    except httpx.HTTPStatusError as e:
-        raise click.ClickException(f"HTTP {e.response.status_code}: {e.response.text}")
-    except httpx.RequestError as e:
-        raise click.ClickException(f"Connection error: {e}")
-
     logger.debug("Order book: %d bids, %d asks", len(book.bids), len(book.asks))
     click.echo(f"OK — order book: {len(book.bids)} bids, {len(book.asks)} asks")
 
@@ -88,16 +100,8 @@ def ping(client: HashpowerClient) -> None:
 def bids(client: HashpowerClient) -> None:
     """List your currently active bids."""
     logger.debug("Fetching current bids")
-    try:
+    with _api_errors():
         current_bids = use_cases.get_current_bids(client)
-    except ValueError as e:
-        raise click.ClickException(str(e))
-    except httpx.TimeoutException:
-        raise click.ClickException("Request timed out.")
-    except httpx.HTTPStatusError as e:
-        raise click.ClickException(f"HTTP {e.response.status_code}: {e.response.text}")
-    except httpx.RequestError as e:
-        raise click.ClickException(f"Connection error: {e}")
 
     if not current_bids:
         click.echo("No active bids.")
@@ -127,24 +131,14 @@ def bids(client: HashpowerClient) -> None:
 @click.pass_obj
 def set_bids(client: HashpowerClient, bid_config: Path, dry_run: bool) -> None:
     """Set bids to match a config file."""
-    try:
+    with _api_errors():
         config = load_config(bid_config)
-    except ValueError as e:
-        raise click.ClickException(str(e))
 
     if not dry_run:
         raise NotImplementedError("Only --dry-run is supported for now.")
 
-    try:
+    with _api_errors():
         result = use_cases.set_bids(client, config)
-    except ValueError as e:
-        raise click.ClickException(str(e))
-    except httpx.TimeoutException:
-        raise click.ClickException("Request timed out.")
-    except httpx.HTTPStatusError as e:
-        raise click.ClickException(f"HTTP {e.response.status_code}: {e.response.text}")
-    except httpx.RequestError as e:
-        raise click.ClickException(f"Connection error: {e}")
 
     click.echo(format_plan(result.plan, result.skipped_bids))
 

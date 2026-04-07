@@ -1,68 +1,19 @@
 """Tests for reconciliation logic."""
 
-from decimal import Decimal
-
 from hypothesis import given, settings, strategies
 from hypothesis.strategies import DrawFn, composite
 
-from hashbidder.client import BidStatus, Upstream, UserBid
+from hashbidder.client import BidStatus, UserBid
 from hashbidder.config import BidConfig, SetBidsConfig
-from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
-from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
-from hashbidder.domain.stratum_url import StratumUrl
-from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.reconcile import CancelReason, reconcile
-
-_UPSTREAM = Upstream(
-    url=StratumUrl("stratum+tcp://pool.example.com:3333"), identity="worker1"
+from tests.conftest import (
+    OTHER_UPSTREAM,
+    UPSTREAM,
+    make_bid_config,
+    make_config,
+    make_user_bid,
 )
-_OTHER_UPSTREAM = Upstream(
-    url=StratumUrl("stratum+tcp://other.pool.com:4444"), identity="worker2"
-)
-
-# Prices in config are sat/PH/Day.
-_PH_DAY = Hashrate(Decimal(1), HashUnit.PH, TimeUnit.DAY)
-# Prices from the API are sat/EH/Day.
-_EH_DAY = Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY)
-
-
-def _config(*bids: BidConfig, upstream: Upstream = _UPSTREAM) -> SetBidsConfig:
-    return SetBidsConfig(
-        default_amount=Sats(100_000), upstream=upstream, bids=tuple(bids)
-    )
-
-
-def _bid_config(price: int, speed: str) -> BidConfig:
-    return BidConfig(
-        price=HashratePrice(sats=Sats(price), per=_PH_DAY),
-        speed_limit=Hashrate(Decimal(speed), HashUnit.PH, TimeUnit.SECOND),
-    )
-
-
-def _user_bid(
-    bid_id: str,
-    price_sat_per_ph_day: int,
-    speed: str,
-    status: BidStatus = BidStatus.ACTIVE,
-    remaining: int = 50_000,
-    upstream: Upstream | None = None,
-) -> UserBid:
-    """Build a UserBid. Price is specified in sat/PH/Day for convenience.
-
-    Internally converts to sat/EH/Day (the API's native unit) by multiplying
-    by 1000, to mirror what the real API returns.
-    """
-    return UserBid(
-        id=bid_id,
-        price=HashratePrice(sats=Sats(price_sat_per_ph_day * 1000), per=_EH_DAY),
-        speed_limit_ph=Hashrate(Decimal(speed), HashUnit.PH, TimeUnit.SECOND),
-        amount_sat=Sats(100_000),
-        status=status,
-        progress=Progress.from_percentage(Decimal("0")),
-        amount_remaining_sat=Sats(remaining),
-        upstream=upstream or _UPSTREAM,
-    )
 
 
 class TestReconcile:
@@ -70,7 +21,7 @@ class TestReconcile:
 
     def test_empty_config_empty_bids(self) -> None:
         """No config entries and no bids produces an empty plan."""
-        plan = reconcile(_config(), ())
+        plan = reconcile(make_config(), ())
 
         assert plan.edits == ()
         assert plan.creates == ()
@@ -79,8 +30,8 @@ class TestReconcile:
 
     def test_exact_match_is_unchanged(self) -> None:
         """A bid that matches config exactly is unchanged."""
-        bid = _user_bid("B1", 500, "5.0")
-        plan = reconcile(_config(_bid_config(500, "5.0")), (bid,))
+        bid = make_user_bid("B1", 500, "5.0")
+        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.unchanged) == 1
         assert plan.unchanged[0].bid is bid
@@ -90,9 +41,9 @@ class TestReconcile:
 
     def test_config_extra_entries_become_creates(self) -> None:
         """Config entries with no matching bid become creates."""
-        c1 = _bid_config(500, "5.0")
-        c2 = _bid_config(300, "10.0")
-        plan = reconcile(_config(c1, c2), ())
+        c1 = make_bid_config(500, "5.0")
+        c2 = make_bid_config(300, "10.0")
+        plan = reconcile(make_config(c1, c2), ())
 
         assert len(plan.creates) == 2
         assert plan.creates[0].config is c1
@@ -102,8 +53,8 @@ class TestReconcile:
 
     def test_existing_bids_not_in_config_become_cancels(self) -> None:
         """Existing bids with no matching config entry become cancels."""
-        bid = _user_bid("B1", 500, "5.0")
-        plan = reconcile(_config(), (bid,))
+        bid = make_user_bid("B1", 500, "5.0")
+        plan = reconcile(make_config(), (bid,))
 
         assert len(plan.cancels) == 1
         assert plan.cancels[0].bid is bid
@@ -111,8 +62,8 @@ class TestReconcile:
 
     def test_price_differs_becomes_edit(self) -> None:
         """A bid where only price differs becomes an edit."""
-        bid = _user_bid("B1", 400, "5.0")
-        plan = reconcile(_config(_bid_config(500, "5.0")), (bid,))
+        bid = make_user_bid("B1", 400, "5.0")
+        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.edits) == 1
         edit = plan.edits[0]
@@ -123,8 +74,8 @@ class TestReconcile:
 
     def test_speed_limit_differs_becomes_edit(self) -> None:
         """A bid where only speed limit differs becomes an edit."""
-        bid = _user_bid("B1", 500, "3.0")
-        plan = reconcile(_config(_bid_config(500, "5.0")), (bid,))
+        bid = make_user_bid("B1", 500, "3.0")
+        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.edits) == 1
         edit = plan.edits[0]
@@ -133,8 +84,8 @@ class TestReconcile:
 
     def test_both_fields_differ_becomes_edit(self) -> None:
         """A bid where both price and speed limit differ becomes an edit."""
-        bid = _user_bid("B1", 400, "3.0")
-        plan = reconcile(_config(_bid_config(500, "5.0")), (bid,))
+        bid = make_user_bid("B1", 400, "3.0")
+        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.edits) == 1
         edit = plan.edits[0]
@@ -143,9 +94,9 @@ class TestReconcile:
 
     def test_upstream_mismatch_becomes_cancel_and_create(self) -> None:
         """A bid with mismatched upstream is canceled and recreated."""
-        bid = _user_bid("B1", 500, "5.0", upstream=_OTHER_UPSTREAM)
-        cfg = _bid_config(500, "5.0")
-        plan = reconcile(_config(cfg), (bid,))
+        bid = make_user_bid("B1", 500, "5.0", upstream=OTHER_UPSTREAM)
+        cfg = make_bid_config(500, "5.0")
+        plan = reconcile(make_config(cfg), (bid,))
 
         assert len(plan.cancels) == 1
         assert plan.cancels[0].bid is bid
@@ -163,12 +114,12 @@ class TestReconcile:
         but bid_high has more remaining amount so it should win the match,
         leaving bid_low to be canceled.
         """
-        bid_high = _user_bid("B1", 500, "3.0", remaining=200_000)  # 1 diff (speed)
-        bid_low = _user_bid("B2", 400, "5.0", remaining=10_000)  # 1 diff (price)
+        bid_high = make_user_bid("B1", 500, "3.0", remaining=200_000)  # 1 diff (speed)
+        bid_low = make_user_bid("B2", 400, "5.0", remaining=10_000)  # 1 diff (price)
 
-        cfg = _bid_config(500, "5.0")
+        cfg = make_bid_config(500, "5.0")
 
-        plan = reconcile(_config(cfg), (bid_low, bid_high))  # pass in wrong order
+        plan = reconcile(make_config(cfg), (bid_low, bid_high))  # pass in wrong order
 
         # bid_high should get the match (edit), bid_low should be canceled.
         assert len(plan.edits) == 1
@@ -181,12 +132,12 @@ class TestReconcile:
 
     def test_fewest_changes_wins(self) -> None:
         """When multiple config entries could match, the one with fewest diffs wins."""
-        bid = _user_bid("B1", 500, "5.0")
+        bid = make_user_bid("B1", 500, "5.0")
 
-        c_exact = _bid_config(500, "5.0")  # 0 diffs
-        c_one_off = _bid_config(600, "5.0")  # 1 diff
+        c_exact = make_bid_config(500, "5.0")  # 0 diffs
+        c_one_off = make_bid_config(600, "5.0")  # 1 diff
 
-        plan = reconcile(_config(c_exact, c_one_off), (bid,))
+        plan = reconcile(make_config(c_exact, c_one_off), (bid,))
 
         assert len(plan.unchanged) == 1
         assert len(plan.creates) == 1
@@ -194,8 +145,8 @@ class TestReconcile:
 
     def test_paused_bids_skipped(self) -> None:
         """PAUSED bids are not matched, edited, or canceled."""
-        bid = _user_bid("B1", 500, "5.0", status=BidStatus.PAUSED)
-        plan = reconcile(_config(_bid_config(500, "5.0")), (bid,))
+        bid = make_user_bid("B1", 500, "5.0", status=BidStatus.PAUSED)
+        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
 
         # The PAUSED bid is invisible to reconciliation — config entry becomes a create.
         assert plan.unchanged == ()
@@ -205,8 +156,8 @@ class TestReconcile:
 
     def test_frozen_bids_skipped(self) -> None:
         """FROZEN bids are not matched, edited, or canceled."""
-        bid = _user_bid("B1", 500, "5.0", status=BidStatus.FROZEN)
-        plan = reconcile(_config(_bid_config(500, "5.0")), (bid,))
+        bid = make_user_bid("B1", 500, "5.0", status=BidStatus.FROZEN)
+        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert plan.unchanged == ()
         assert plan.cancels == ()
@@ -214,26 +165,26 @@ class TestReconcile:
 
     def test_canceled_bids_skipped(self) -> None:
         """Already-canceled bids are ignored."""
-        bid = _user_bid("B1", 500, "5.0", status=BidStatus.CANCELED)
-        plan = reconcile(_config(_bid_config(500, "5.0")), (bid,))
+        bid = make_user_bid("B1", 500, "5.0", status=BidStatus.CANCELED)
+        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.creates) == 1
         assert plan.cancels == ()
 
     def test_mixed_scenario(self) -> None:
         """A realistic scenario with edits, creates, cancels, and unchanged."""
-        bid_unchanged = _user_bid("B1", 500, "5.0", remaining=300_000)
-        bid_edit = _user_bid("B2", 400, "10.0", remaining=200_000)
-        bid_cancel = _user_bid("B3", 100, "1.0", remaining=50_000)
-        bid_paused = _user_bid("B4", 999, "99.0", status=BidStatus.PAUSED)
+        bid_unchanged = make_user_bid("B1", 500, "5.0", remaining=300_000)
+        bid_edit = make_user_bid("B2", 400, "10.0", remaining=200_000)
+        bid_cancel = make_user_bid("B3", 100, "1.0", remaining=50_000)
+        bid_paused = make_user_bid("B4", 999, "99.0", status=BidStatus.PAUSED)
 
         # 2 config entries for 3 active bids → 1 cancel.
         # Plus 1 new config entry → 1 create.
-        c_unchanged = _bid_config(500, "5.0")
-        c_edit = _bid_config(300, "10.0")
+        c_unchanged = make_bid_config(500, "5.0")
+        c_edit = make_bid_config(300, "10.0")
 
         plan = reconcile(
-            _config(c_unchanged, c_edit),
+            make_config(c_unchanged, c_edit),
             (bid_unchanged, bid_edit, bid_cancel, bid_paused),
         )
 
@@ -254,10 +205,10 @@ class TestReconcile:
     def test_empty_config_cancels_all_active(self) -> None:
         """Empty config with active bids cancels all of them."""
         bids = (
-            _user_bid("B1", 500, "5.0"),
-            _user_bid("B2", 300, "10.0"),
+            make_user_bid("B1", 500, "5.0"),
+            make_user_bid("B2", 300, "10.0"),
         )
-        plan = reconcile(_config(), bids)
+        plan = reconcile(make_config(), bids)
 
         assert len(plan.cancels) == 2
         assert plan.edits == ()
@@ -266,9 +217,9 @@ class TestReconcile:
 
     def test_upstream_mismatch_on_edit_candidate(self) -> None:
         """A bid that would be an edit but has wrong upstream gets cancel+create."""
-        bid = _user_bid("B1", 400, "5.0", upstream=_OTHER_UPSTREAM)
-        cfg = _bid_config(500, "5.0")
-        plan = reconcile(_config(cfg), (bid,))
+        bid = make_user_bid("B1", 400, "5.0", upstream=OTHER_UPSTREAM)
+        cfg = make_bid_config(500, "5.0")
+        plan = reconcile(make_config(cfg), (bid,))
 
         assert len(plan.cancels) == 1
         assert plan.cancels[0].reason == CancelReason.UPSTREAM_MISMATCH
@@ -279,12 +230,12 @@ class TestReconcile:
     def test_all_paused_frozen_with_config_entries(self) -> None:
         """All bids are PAUSED/FROZEN — config entries become creates, no cancels."""
         bids = (
-            _user_bid("B1", 500, "5.0", status=BidStatus.PAUSED),
-            _user_bid("B2", 300, "10.0", status=BidStatus.FROZEN),
+            make_user_bid("B1", 500, "5.0", status=BidStatus.PAUSED),
+            make_user_bid("B2", 300, "10.0", status=BidStatus.FROZEN),
         )
-        c1 = _bid_config(500, "5.0")
-        c2 = _bid_config(300, "10.0")
-        plan = reconcile(_config(c1, c2), bids)
+        c1 = make_bid_config(500, "5.0")
+        c2 = make_bid_config(300, "10.0")
+        plan = reconcile(make_config(c1, c2), bids)
 
         assert len(plan.creates) == 2
         assert plan.cancels == ()
@@ -299,17 +250,17 @@ _price_int = strategies.integers(min_value=1, max_value=10_000)
 _speed_str = strategies.sampled_from(["1.0", "5.0", "10.0", "20.0", "50.0"])
 _remaining = strategies.integers(min_value=1, max_value=1_000_000)
 _status = strategies.sampled_from(_ALL_STATUSES)
-_upstream_choice = strategies.sampled_from([_UPSTREAM, _OTHER_UPSTREAM])
+_upstream_choice = strategies.sampled_from([UPSTREAM, OTHER_UPSTREAM])
 
 
 @composite
 def _gen_bid_config(draw: DrawFn) -> BidConfig:
-    return _bid_config(draw(_price_int), draw(_speed_str))
+    return make_bid_config(draw(_price_int), draw(_speed_str))
 
 
 @composite
 def _gen_user_bid_with_id(draw: DrawFn, bid_id: str) -> UserBid:
-    return _user_bid(
+    return make_user_bid(
         bid_id,
         draw(_price_int),
         draw(_speed_str),

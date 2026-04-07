@@ -115,7 +115,7 @@ def reconcile(
     cancels: list[CancelAction] = []
     unchanged: list[UnchangedBid] = []
 
-    paired_bid_to_config: dict[int, int] = {}
+    paired_bid_to_config: dict[str, int] = {}
 
     # Greedy match: each bid picks the config entry with fewest diffs.
     for bid in manageable_bids:
@@ -124,16 +124,16 @@ def reconcile(
         best_idx = min(
             unmatched_configs, key=lambda ci: _field_diff_count(bid, config.bids[ci])
         )
-        paired_bid_to_config[id(bid)] = best_idx
+        paired_bid_to_config[bid.id] = best_idx
         unmatched_configs.remove(best_idx)
 
     # Classify paired bids.
     for bid in manageable_bids:
-        if id(bid) not in paired_bid_to_config:
+        if bid.id not in paired_bid_to_config:
             cancels.append(CancelAction(bid=bid, reason=CancelReason.UNMATCHED))
             continue
 
-        config_entry = config.bids[paired_bid_to_config[id(bid)]]
+        config_entry = config.bids[paired_bid_to_config[bid.id]]
         diffs = _field_diff_count(bid, config_entry)
 
         # Check upstream match.
