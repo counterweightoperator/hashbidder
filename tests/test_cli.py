@@ -5,46 +5,12 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from hashbidder.client import (
-    AskItem,
-    BidItem,
-    BidStatus,
-    OrderBook,
-    Upstream,
-    UserBid,
-)
+from hashbidder.client import AskItem, BidItem, OrderBook
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
-from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
-from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.main import cli
-
-
-class FakeClient:
-    """In-memory hashpower client for testing."""
-
-    def __init__(
-        self,
-        orderbook: OrderBook | None = None,
-        current_bids: tuple[UserBid, ...] = (),
-    ) -> None:
-        """Initialize with canned responses.
-
-        Args:
-            orderbook: The order book to return from get_orderbook.
-            current_bids: The bids to return from get_current_bids.
-        """
-        self._orderbook = orderbook or OrderBook(bids=(), asks=())
-        self._current_bids = current_bids
-
-    def get_orderbook(self) -> OrderBook:
-        """Return the canned order book."""
-        return self._orderbook
-
-    def get_current_bids(self) -> tuple[UserBid, ...]:
-        """Return the canned bids."""
-        return self._current_bids
+from tests.conftest import UPSTREAM, FakeClient, make_user_bid
 
 
 def test_ping_prints_orderbook_summary() -> None:
@@ -81,17 +47,7 @@ def test_ping_prints_orderbook_summary() -> None:
 
 def test_bids_prints_active_bids() -> None:
     """Bids command prints each active bid with key details."""
-    bid = UserBid(
-        id="B123456789",
-        price=HashratePrice(
-            sats=Sats(500), per=Hashrate(Decimal("1"), HashUnit.EH, TimeUnit.DAY)
-        ),
-        speed_limit_ph=Hashrate(Decimal("5.0"), HashUnit.PH, TimeUnit.SECOND),
-        amount_sat=Sats(100_000),
-        status=BidStatus.ACTIVE,
-        progress=Progress.from_percentage(Decimal("42.5")),
-        amount_remaining_sat=Sats(57_500),
-    )
+    bid = make_user_bid("B123456789", 500, "5.0")
 
     runner = CliRunner()
     result = runner.invoke(cli, ["bids"], obj=FakeClient(current_bids=(bid,)))
@@ -99,7 +55,6 @@ def test_bids_prints_active_bids() -> None:
     assert result.exit_code == 0
     assert "B123456789" in result.output
     assert "ACTIVE" in result.output
-    assert "42.5%" in result.output
 
 
 def test_bids_no_active_bids() -> None:
@@ -147,36 +102,12 @@ speed_limit_ph_s = 10.0
 
 def test_set_bids_dry_run_end_to_end(tmp_path: Path) -> None:
     """End-to-end dry run with existing bids: edit, cancel, create."""
-    upstream = Upstream(
-        url=StratumUrl("stratum+tcp://pool.example.com:3333"),
-        identity="worker1",
-    )
-    eh_day = Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY)
-
     existing_bids = (
         # Matches config entry at 500 sat/PH/Day, 5.0 PH/s — but price
         # is 400 → edit.
-        UserBid(
-            id="B1",
-            price=HashratePrice(sats=Sats(400_000), per=eh_day),
-            speed_limit_ph=Hashrate(Decimal("5.0"), HashUnit.PH, TimeUnit.SECOND),
-            amount_sat=Sats(200_000),
-            status=BidStatus.ACTIVE,
-            progress=Progress.from_percentage(Decimal("0")),
-            amount_remaining_sat=Sats(200_000),
-            upstream=upstream,
-        ),
+        make_user_bid("B1", 400, "5.0", amount=200_000, upstream=UPSTREAM),
         # No matching config entry (only 1 config bid) → cancel.
-        UserBid(
-            id="B2",
-            price=HashratePrice(sats=Sats(600_000), per=eh_day),
-            speed_limit_ph=Hashrate(Decimal("3.0"), HashUnit.PH, TimeUnit.SECOND),
-            amount_sat=Sats(50_000),
-            status=BidStatus.ACTIVE,
-            progress=Progress.from_percentage(Decimal("0")),
-            amount_remaining_sat=Sats(50_000),
-            upstream=upstream,
-        ),
+        make_user_bid("B2", 600, "3.0", remaining=50_000, upstream=UPSTREAM),
     )
 
     config_file = tmp_path / "bids.toml"

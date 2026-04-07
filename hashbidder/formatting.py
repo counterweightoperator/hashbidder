@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from hashbidder.client import UserBid
-from hashbidder.domain.hashrate import HashUnit
+from hashbidder.domain.hashrate import HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.reconcile import (
@@ -14,8 +14,6 @@ from hashbidder.reconcile import (
     ReconciliationPlan,
 )
 
-_PRICE_UNIT = (HashUnit.PH, TimeUnit.DAY)
-
 
 def _fmt_speed(value: Decimal) -> str:
     """Format a speed limit value, keeping at least one decimal place."""
@@ -25,13 +23,14 @@ def _fmt_speed(value: Decimal) -> str:
     return str(normalized)
 
 
-def _price_ph_day(bid: UserBid) -> Sats:
-    return bid.price.to(*_PRICE_UNIT).sats
+def _to_ph_day(price: HashratePrice) -> Sats:
+    """Convert a hashrate price to sat/PH/Day."""
+    return price.to(HashUnit.PH, TimeUnit.DAY).sats
 
 
 def _format_edit(edit: EditAction) -> str:
-    old_price = edit.old_price.to(*_PRICE_UNIT).sats
-    new_price = edit.new_price.to(*_PRICE_UNIT).sats
+    old_price = _to_ph_day(edit.old_price)
+    new_price = _to_ph_day(edit.new_price)
 
     if edit.price_changed:
         price_line = f"  price:       {old_price} \u2192 {new_price} sat/PH/Day"
@@ -55,7 +54,7 @@ def _format_edit(edit: EditAction) -> str:
 
 
 def _format_create(create: CreateAction) -> str:
-    price = create.config.price.to(*_PRICE_UNIT).sats
+    price = _to_ph_day(create.config.price)
     speed = _fmt_speed(create.config.speed_limit.value)
 
     if create.replaces is not None:
@@ -74,7 +73,7 @@ def _format_create(create: CreateAction) -> str:
 
 
 def _format_cancel(cancel: CancelAction) -> str:
-    price = _price_ph_day(cancel.bid)
+    price = _to_ph_day(cancel.bid.price)
     speed = _fmt_speed(cancel.bid.speed_limit_ph.value)
 
     lines = [
@@ -87,9 +86,9 @@ def _format_cancel(cancel: CancelAction) -> str:
 
 
 def _format_final_state_line(
-    price_ph_day: int,
+    price_ph_day: Sats,
     speed: str,
-    amount: int,
+    amount: Sats,
     annotation: str,
 ) -> str:
     return (
@@ -141,11 +140,11 @@ def format_plan(plan: ReconciliationPlan, skipped_bids: tuple[UserBid, ...]) -> 
     state_lines: list[str] = []
 
     for edit in plan.edits:
-        price = edit.new_price.to(*_PRICE_UNIT).sats
+        price = _to_ph_day(edit.new_price)
         speed = _fmt_speed(edit.new_speed_limit_ph.value)
         changes: list[str] = []
         if edit.price_changed:
-            old = edit.old_price.to(*_PRICE_UNIT).sats
+            old = _to_ph_day(edit.old_price)
             changes.append(f"price {old}\u2192{price}")
         if edit.speed_limit_changed:
             old_s = _fmt_speed(edit.old_speed_limit_ph.value)
@@ -157,19 +156,19 @@ def format_plan(plan: ReconciliationPlan, skipped_bids: tuple[UserBid, ...]) -> 
         )
 
     for create in plan.creates:
-        price = create.config.price.to(*_PRICE_UNIT).sats
+        price = _to_ph_day(create.config.price)
         speed = _fmt_speed(create.config.speed_limit.value)
         state_lines.append(_format_final_state_line(price, speed, create.amount, "NEW"))
 
     for unch in plan.unchanged:
-        price = _price_ph_day(unch.bid)
+        price = _to_ph_day(unch.bid.price)
         speed = _fmt_speed(unch.bid.speed_limit_ph.value)
         state_lines.append(
             _format_final_state_line(price, speed, unch.bid.amount_sat, "UNCHANGED")
         )
 
     for bid in skipped_bids:
-        price = _price_ph_day(bid)
+        price = _to_ph_day(bid.price)
         speed = _fmt_speed(bid.speed_limit_ph.value)
         state_lines.append(
             _format_final_state_line(price, speed, bid.amount_sat, bid.status.name)
