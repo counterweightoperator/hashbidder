@@ -208,7 +208,15 @@ def format_outcome(outcome: ActionOutcome) -> str:
         return f"{label}... {suffix}"
     if outcome.status == ActionStatus.FAILED:
         error_part = f": {outcome.error}" if outcome.error else ""
-        return f"{label}... FAILED{error_part}"
+        attempt_part = ""
+        if outcome.attempt is not None and outcome.max_attempts is not None:
+            attempt_part = f" (attempt {outcome.attempt}/{outcome.max_attempts}"
+            # If this is not the last attempt, indicate retry.
+            if outcome.attempt < outcome.max_attempts:
+                attempt_part += ", retrying in 5s)"
+            else:
+                attempt_part += ")"
+        return f"{label}... FAILED{error_part}{attempt_part}"
     # skipped
     return "  skipping linked CREATE (upstream mismatch pair)"
 

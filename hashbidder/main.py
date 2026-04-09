@@ -154,8 +154,7 @@ def set_bids(client: HashpowerClient, bid_config: Path, dry_run: bool) -> None:
         return
 
     click.echo("=== Executing Changes ===")
-    with _api_errors():
-        exec_result = use_cases.execute_plan(client, plan)
+    exec_result = use_cases.execute_plan(client, plan)
 
     for outcome in exec_result.outcomes:
         click.echo(format_outcome(outcome))
