@@ -1,6 +1,9 @@
-"""Dry-run output formatting for reconciliation plans."""
+"""Output formatting for reconciliation plans and execution results."""
+
+from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from hashbidder.client import UserBid
 from hashbidder.domain.hashrate import HashratePrice, HashUnit
@@ -13,6 +16,9 @@ from hashbidder.reconcile import (
     EditAction,
     ReconciliationPlan,
 )
+
+if TYPE_CHECKING:
+    from hashbidder.use_cases import ActionOutcome
 
 
 def _fmt_speed(value: Decimal) -> str:
@@ -182,3 +188,54 @@ def format_plan(plan: ReconciliationPlan, skipped_bids: tuple[UserBid, ...]) -> 
         sections.append("No active bids.")
 
     return "\n".join(sections)
+
+
+def format_create_label(create: CreateAction) -> str:
+    """Format the label for a create action (used in execution output)."""
+    price = _to_ph_day(create.config.price)
+    speed = _fmt_speed(create.config.speed_limit.value)
+    return f"CREATE {price} sat/PH/Day {speed} PH/s"
+
+
+def format_outcome(outcome: ActionOutcome) -> str:
+    """Format a single action outcome for real-time execution output."""
+    if outcome.status.value == "succeeded":
+        suffix = "OK"
+        if outcome.created_id:
+            suffix = f"OK \u2192 {outcome.created_id}"
+        return f"{outcome.label}... {suffix}"
+    if outcome.status.value == "failed":
+        error_part = f": {outcome.error}" if outcome.error else ""
+        return f"{outcome.label}... FAILED{error_part}"
+    # skipped
+    return "  skipping linked CREATE (upstream mismatch pair)"
+
+
+def format_results_summary(outcomes: tuple[ActionOutcome, ...]) -> str:
+    """Format the results summary line."""
+    from hashbidder.use_cases import ActionStatus
+
+    succeeded = sum(1 for o in outcomes if o.status == ActionStatus.SUCCEEDED)
+    failed = sum(1 for o in outcomes if o.status == ActionStatus.FAILED)
+    skipped = sum(1 for o in outcomes if o.status == ActionStatus.SKIPPED)
+    parts = [f"{succeeded} succeeded", f"{failed} failed"]
+    if skipped:
+        parts.append(f"{skipped} skipped")
+    return ", ".join(parts)
+
+
+def format_current_bids(bids: tuple[UserBid, ...]) -> str:
+    """Format the current bids section after execution."""
+    if not bids:
+        return "No active bids."
+    lines = []
+    for bid in bids:
+        price_ph_day = _to_ph_day(bid.price)
+        speed = _fmt_speed(bid.speed_limit_ph.value)
+        lines.append(
+            f"{bid.id}  price={price_ph_day} sat/PH/Day  "
+            f"limit={speed} PH/s  "
+            f"amount={bid.amount_sat} sat  "
+            f"{bid.status.name}"
+        )
+    return "\n".join(lines)

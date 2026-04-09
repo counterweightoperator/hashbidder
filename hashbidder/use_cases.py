@@ -1,10 +1,19 @@
 """Hashbidder use cases."""
 
+import uuid
 from dataclasses import dataclass
+from enum import Enum
 
-from hashbidder.client import HashpowerClient, OrderBook, UserBid
+from hashbidder.client import ClOrderId, HashpowerClient, OrderBook, UserBid
 from hashbidder.config import SetBidsConfig
-from hashbidder.reconcile import MANAGEABLE_STATUSES, ReconciliationPlan, reconcile
+from hashbidder.reconcile import (
+    MANAGEABLE_STATUSES,
+    CancelAction,
+    CreateAction,
+    EditAction,
+    ReconciliationPlan,
+    reconcile,
+)
 
 
 def ping(client: HashpowerClient) -> OrderBook:
@@ -53,3 +62,88 @@ def set_bids(client: HashpowerClient, config: SetBidsConfig) -> SetBidsResult:
     plan = reconcile(config, current_bids)
     skipped = tuple(b for b in current_bids if b.status not in MANAGEABLE_STATUSES)
     return SetBidsResult(plan=plan, skipped_bids=skipped)
+
+
+class ActionStatus(Enum):
+    """Outcome status of a single execution action."""
+
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+@dataclass(frozen=True)
+class ActionOutcome:
+    """Result of executing a single action."""
+
+    label: str
+    status: ActionStatus
+    error: str | None = None
+    created_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    """Result of executing a reconciliation plan."""
+
+    outcomes: tuple[ActionOutcome, ...]
+    final_bids: tuple[UserBid, ...]
+
+
+def _execute_cancel(client: HashpowerClient, cancel: CancelAction) -> ActionOutcome:
+    """Execute a single cancel action."""
+    label = f"CANCEL {cancel.bid.id}"
+    client.cancel_bid(cancel.bid.id)
+    return ActionOutcome(label=label, status=ActionStatus.SUCCEEDED)
+
+
+def _execute_edit(client: HashpowerClient, edit: EditAction) -> ActionOutcome:
+    """Execute a single edit action."""
+    label = f"EDIT {edit.bid.id}"
+    client.edit_bid(edit.bid.id, edit.new_price, edit.new_speed_limit_ph)
+    return ActionOutcome(label=label, status=ActionStatus.SUCCEEDED)
+
+
+def _execute_create(client: HashpowerClient, create: CreateAction) -> ActionOutcome:
+    """Execute a single create action."""
+    from hashbidder.formatting import format_create_label
+
+    label = format_create_label(create)
+    cl_order_id = ClOrderId(str(uuid.uuid4()))
+    result = client.create_bid(
+        upstream=create.upstream,
+        amount_sat=create.amount,
+        price=create.config.price,
+        speed_limit=create.config.speed_limit,
+        cl_order_id=cl_order_id,
+    )
+    return ActionOutcome(
+        label=label, status=ActionStatus.SUCCEEDED, created_id=result.id
+    )
+
+
+def execute_plan(client: HashpowerClient, plan: ReconciliationPlan) -> ExecutionResult:
+    """Execute a reconciliation plan against the API.
+
+    Executes in order: cancels, edits, creates.
+
+    Args:
+        client: The hashpower market client to use.
+        plan: The reconciliation plan to execute.
+
+    Returns:
+        Outcomes for each action and the final bid state from the API.
+    """
+    outcomes: list[ActionOutcome] = []
+
+    for cancel in plan.cancels:
+        outcomes.append(_execute_cancel(client, cancel))
+
+    for edit in plan.edits:
+        outcomes.append(_execute_edit(client, edit))
+
+    for create in plan.creates:
+        outcomes.append(_execute_create(client, create))
+
+    final_bids = client.get_current_bids()
+    return ExecutionResult(outcomes=tuple(outcomes), final_bids=final_bids)

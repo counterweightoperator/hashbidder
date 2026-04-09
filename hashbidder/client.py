@@ -5,7 +5,8 @@ import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Protocol
+from typing import Any, NewType, Protocol
+from urllib.parse import unquote
 
 import httpx
 
@@ -19,6 +20,24 @@ logger = logging.getLogger(__name__)
 
 API_BASE = httpx.URL("https://hashpower.braiins.com/v1")
 DEFAULT_TIMEOUT = 10.0
+
+BidId = NewType("BidId", str)
+ClOrderId = NewType("ClOrderId", str)
+
+
+class ApiError(Exception):
+    """An error returned by the Braiins API."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        """Initialize with the HTTP status code and decoded error message."""
+        self.status_code = status_code
+        self.message = message
+        super().__init__(f"HTTP {status_code}: {message}")
+
+    @property
+    def is_transient(self) -> bool:
+        """Whether this error is worth retrying (429 or 5xx)."""
+        return self.status_code == 429 or self.status_code >= 500
 
 
 @dataclass
@@ -73,7 +92,7 @@ class BidStatus(Enum):
 class UserBid:
     """A user's spot market bid."""
 
-    id: str
+    id: BidId
     price: HashratePrice
     speed_limit_ph: Hashrate
     amount_sat: Sats
@@ -81,6 +100,13 @@ class UserBid:
     progress: Progress
     amount_remaining_sat: Sats
     upstream: Upstream | None = None
+
+
+@dataclass(frozen=True)
+class CreateBidResult:
+    """Result of creating a new bid."""
+
+    id: BidId
 
 
 class HashpowerClient(Protocol):
@@ -94,12 +120,43 @@ class HashpowerClient(Protocol):
         """Fetch the authenticated user's active bids."""
         ...
 
+    def create_bid(
+        self,
+        upstream: Upstream,
+        amount_sat: Sats,
+        price: HashratePrice,
+        speed_limit: Hashrate,
+        cl_order_id: ClOrderId,
+    ) -> CreateBidResult:
+        """Create a new spot bid."""
+        ...
+
+    def edit_bid(
+        self,
+        bid_id: BidId,
+        new_price: HashratePrice,
+        new_speed_limit: Hashrate,
+    ) -> None:
+        """Edit an existing spot bid's price and speed limit."""
+        ...
+
+    def cancel_bid(self, order_id: BidId) -> None:
+        """Cancel an existing spot bid."""
+        ...
+
 
 class BraiinsClient:
     """HTTP client for the Braiins Hashpower API."""
 
     _SPOT_ORDERBOOK_PATH = "/spot/orderbook"
     _SPOT_BID_CURRENT_PATH = "/spot/bid/current"
+    _SPOT_BID_PATH = "/spot/bid"
+
+    # API wire units.
+    _API_HASH_UNIT = HashUnit.EH
+    _API_TIME_UNIT = TimeUnit.DAY
+    _API_SPEED_HASH_UNIT = HashUnit.PH
+    _API_SPEED_TIME_UNIT = TimeUnit.SECOND
 
     def __init__(
         self,
@@ -127,6 +184,26 @@ class BraiinsClient:
         if self._api_key is None:
             raise ValueError("API key required for authenticated endpoints")
         return {"apikey": self._api_key}
+
+    @staticmethod
+    def _raise_api_error(response: httpx.Response) -> None:
+        """Raise an ApiError from a non-2xx response."""
+        grpc_msg = response.headers.get("grpc-message", "")
+        if grpc_msg:
+            message = unquote(grpc_msg)
+        else:
+            message = response.text or response.reason_phrase or "Unknown error"
+        raise ApiError(response.status_code, message)
+
+    def _price_to_api_sats(self, price: HashratePrice) -> int:
+        """Convert a HashratePrice to the API's sat amount in wire units."""
+        return price.to(self._API_HASH_UNIT, self._API_TIME_UNIT).sats
+
+    def _speed_to_api_value(self, speed: Hashrate) -> float:
+        """Convert a Hashrate to the API's speed limit float in PH/s."""
+        return float(
+            speed.to(self._API_SPEED_HASH_UNIT, self._API_SPEED_TIME_UNIT).value
+        )
 
     def get_orderbook(self) -> OrderBook:
         """Fetch the current spot order book.
@@ -203,7 +280,7 @@ class BraiinsClient:
         )
         return tuple(
             UserBid(
-                id=item["bid"]["id"],
+                id=BidId(item["bid"]["id"]),
                 price=HashratePrice(
                     sats=Sats(int(item["bid"]["price_sat"])),
                     per=Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY),
@@ -228,3 +305,77 @@ class BraiinsClient:
             )
             for item in data["items"]
         )
+
+    def create_bid(
+        self,
+        upstream: Upstream,
+        amount_sat: Sats,
+        price: HashratePrice,
+        speed_limit: Hashrate,
+        cl_order_id: ClOrderId,
+    ) -> CreateBidResult:
+        """Create a new spot bid.
+
+        Raises:
+            ApiError: If the API returns a non-2xx response.
+        """
+        url = f"{self._base_url}{self._SPOT_BID_PATH}"
+        body = {
+            "dest_upstream": {
+                "url": str(upstream.url),
+                "identity": upstream.identity,
+            },
+            "amount_sat": amount_sat,
+            "price_sat": self._price_to_api_sats(price),
+            "speed_limit_ph": self._speed_to_api_value(speed_limit),
+            "cl_order_id": cl_order_id,
+        }
+        logger.debug("POST %s %s", url, body)
+        response = httpx.post(
+            url, json=body, headers=self._auth_headers(), timeout=self._timeout
+        )
+        if not response.is_success:
+            self._raise_api_error(response)
+        data: dict[str, str] = response.json()
+        return CreateBidResult(id=BidId(data["id"]))
+
+    def edit_bid(
+        self,
+        bid_id: BidId,
+        new_price: HashratePrice,
+        new_speed_limit: Hashrate,
+    ) -> None:
+        """Edit an existing spot bid's price and speed limit.
+
+        Raises:
+            ApiError: If the API returns a non-2xx response.
+        """
+        url = f"{self._base_url}{self._SPOT_BID_PATH}"
+        body: dict[str, Any] = {
+            "bid_id": bid_id,
+            "new_price_sat": self._price_to_api_sats(new_price),
+            "new_speed_limit_ph": {"value": self._speed_to_api_value(new_speed_limit)},
+        }
+        logger.debug("PUT %s %s", url, body)
+        response = httpx.put(
+            url, json=body, headers=self._auth_headers(), timeout=self._timeout
+        )
+        if not response.is_success:
+            self._raise_api_error(response)
+
+    def cancel_bid(self, order_id: BidId) -> None:
+        """Cancel an existing spot bid.
+
+        Raises:
+            ApiError: If the API returns a non-2xx response.
+        """
+        url = f"{self._base_url}{self._SPOT_BID_PATH}"
+        logger.debug("DELETE %s order_id=%s", url, order_id)
+        response = httpx.delete(
+            url,
+            params={"order_id": order_id},
+            headers=self._auth_headers(),
+            timeout=self._timeout,
+        )
+        if not response.is_success:
+            self._raise_api_error(response)

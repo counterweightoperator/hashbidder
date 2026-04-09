@@ -16,7 +16,12 @@ from hashbidder.client import API_BASE, BraiinsClient, HashpowerClient
 from hashbidder.config import load_config
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.formatting import format_plan
+from hashbidder.formatting import (
+    format_current_bids,
+    format_outcome,
+    format_plan,
+    format_results_summary,
+)
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
@@ -134,13 +139,34 @@ def set_bids(client: HashpowerClient, bid_config: Path, dry_run: bool) -> None:
     with _api_errors():
         config = load_config(bid_config)
 
-    if not dry_run:
-        raise NotImplementedError("Only --dry-run is supported for now.")
-
     with _api_errors():
         result = use_cases.set_bids(client, config)
 
-    click.echo(format_plan(result.plan, result.skipped_bids))
+    plan = result.plan
+    has_changes = plan.edits or plan.creates or plan.cancels
+
+    if dry_run:
+        click.echo(format_plan(plan, result.skipped_bids))
+        return
+
+    if not has_changes:
+        click.echo("No changes needed.")
+        return
+
+    click.echo("=== Executing Changes ===")
+    with _api_errors():
+        exec_result = use_cases.execute_plan(client, plan)
+
+    for outcome in exec_result.outcomes:
+        click.echo(format_outcome(outcome))
+
+    click.echo("")
+    click.echo("=== Results ===")
+    click.echo(format_results_summary(exec_result.outcomes))
+
+    click.echo("")
+    click.echo("=== Current Bids ===")
+    click.echo(format_current_bids(exec_result.final_bids))
 
 
 def main() -> None:

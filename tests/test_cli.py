@@ -154,8 +154,8 @@ def test_set_bids_invalid_config(tmp_path: Path) -> None:
     assert "Invalid TOML" in result.output
 
 
-def test_set_bids_without_dry_run(tmp_path: Path) -> None:
-    """set-bids without --dry-run raises NotImplementedError."""
+def test_set_bids_without_dry_run_no_changes(tmp_path: Path) -> None:
+    """set-bids without --dry-run prints no changes when config is empty."""
     config_file = tmp_path / "bids.toml"
     config_file.write_text("""\
 default_amount_sat = 100000
@@ -172,4 +172,5 @@ identity = "worker1"
         obj=FakeClient(),
     )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 0
+    assert "No changes needed." in result.output
