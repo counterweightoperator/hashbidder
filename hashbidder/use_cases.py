@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from enum import Enum
 
-from hashbidder.client import ClOrderId, HashpowerClient, OrderBook, UserBid
+from hashbidder.client import BidId, ClOrderId, HashpowerClient, OrderBook, UserBid
 from hashbidder.config import SetBidsConfig
 from hashbidder.reconcile import (
     MANAGEABLE_STATUSES,
@@ -76,10 +76,10 @@ class ActionStatus(Enum):
 class ActionOutcome:
     """Result of executing a single action."""
 
-    label: str
+    action: CancelAction | EditAction | CreateAction
     status: ActionStatus
     error: str | None = None
-    created_id: str | None = None
+    created_id: BidId | None = None
 
 
 @dataclass(frozen=True)
@@ -92,23 +92,18 @@ class ExecutionResult:
 
 def _execute_cancel(client: HashpowerClient, cancel: CancelAction) -> ActionOutcome:
     """Execute a single cancel action."""
-    label = f"CANCEL {cancel.bid.id}"
     client.cancel_bid(cancel.bid.id)
-    return ActionOutcome(label=label, status=ActionStatus.SUCCEEDED)
+    return ActionOutcome(action=cancel, status=ActionStatus.SUCCEEDED)
 
 
 def _execute_edit(client: HashpowerClient, edit: EditAction) -> ActionOutcome:
     """Execute a single edit action."""
-    label = f"EDIT {edit.bid.id}"
     client.edit_bid(edit.bid.id, edit.new_price, edit.new_speed_limit_ph)
-    return ActionOutcome(label=label, status=ActionStatus.SUCCEEDED)
+    return ActionOutcome(action=edit, status=ActionStatus.SUCCEEDED)
 
 
 def _execute_create(client: HashpowerClient, create: CreateAction) -> ActionOutcome:
     """Execute a single create action."""
-    from hashbidder.formatting import format_create_label
-
-    label = format_create_label(create)
     cl_order_id = ClOrderId(str(uuid.uuid4()))
     result = client.create_bid(
         upstream=create.upstream,
@@ -118,7 +113,7 @@ def _execute_create(client: HashpowerClient, create: CreateAction) -> ActionOutc
         cl_order_id=cl_order_id,
     )
     return ActionOutcome(
-        label=label, status=ActionStatus.SUCCEEDED, created_id=result.id
+        action=create, status=ActionStatus.SUCCEEDED, created_id=result.id
     )
 
 
