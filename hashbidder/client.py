@@ -19,7 +19,6 @@ from hashbidder.domain.time_unit import TimeUnit
 logger = logging.getLogger(__name__)
 
 API_BASE = httpx.URL("https://hashpower.braiins.com/v1")
-DEFAULT_TIMEOUT = 10.0
 
 BidId = NewType("BidId", str)
 ClOrderId = NewType("ClOrderId", str)
@@ -160,20 +159,20 @@ class BraiinsClient:
 
     def __init__(
         self,
-        base_url: httpx.URL = API_BASE,
-        timeout: float = DEFAULT_TIMEOUT,
-        api_key: str | None = None,
+        base_url: httpx.URL,
+        api_key: str | None,
+        http_client: httpx.Client,
     ) -> None:
         """Initialize the client.
 
         Args:
             base_url: The base URL of the Braiins Hashpower API.
-            timeout: Request timeout in seconds.
             api_key: API token for authenticated endpoints.
+            http_client: The httpx.Client to use for requests.
         """
         self._base_url = base_url
-        self._timeout = timeout
         self._api_key = api_key
+        self._http = http_client
 
     def _auth_headers(self) -> dict[str, str]:
         """Return authentication headers.
@@ -218,7 +217,7 @@ class BraiinsClient:
         """
         url = f"{self._base_url}{self._SPOT_ORDERBOOK_PATH}"
         logger.debug("GET %s", url)
-        response = httpx.get(url, timeout=self._timeout)
+        response = self._http.get(url)
         response.raise_for_status()
         logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         data: dict[str, list[dict[str, Any]]] = json.loads(
@@ -272,7 +271,7 @@ class BraiinsClient:
         """
         url = f"{self._base_url}{self._SPOT_BID_CURRENT_PATH}"
         logger.debug("GET %s", url)
-        response = httpx.get(url, headers=self._auth_headers(), timeout=self._timeout)
+        response = self._http.get(url, headers=self._auth_headers())
         response.raise_for_status()
         logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         data: dict[str, list[dict[str, Any]]] = json.loads(
@@ -331,9 +330,7 @@ class BraiinsClient:
             "cl_order_id": cl_order_id,
         }
         logger.debug("POST %s %s", url, body)
-        response = httpx.post(
-            url, json=body, headers=self._auth_headers(), timeout=self._timeout
-        )
+        response = self._http.post(url, json=body, headers=self._auth_headers())
         if not response.is_success:
             self._raise_api_error(response)
         data: dict[str, str] = response.json()
@@ -357,9 +354,7 @@ class BraiinsClient:
             "new_speed_limit_ph": {"value": self._speed_to_api_value(new_speed_limit)},
         }
         logger.debug("PUT %s %s", url, body)
-        response = httpx.put(
-            url, json=body, headers=self._auth_headers(), timeout=self._timeout
-        )
+        response = self._http.put(url, json=body, headers=self._auth_headers())
         if not response.is_success:
             self._raise_api_error(response)
 
@@ -371,11 +366,8 @@ class BraiinsClient:
         """
         url = f"{self._base_url}{self._SPOT_BID_PATH}"
         logger.debug("DELETE %s order_id=%s", url, order_id)
-        response = httpx.delete(
-            url,
-            params={"order_id": order_id},
-            headers=self._auth_headers(),
-            timeout=self._timeout,
+        response = self._http.delete(
+            url, params={"order_id": order_id}, headers=self._auth_headers()
         )
         if not response.is_success:
             self._raise_api_error(response)
