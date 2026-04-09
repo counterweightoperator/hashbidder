@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 from hashbidder.client import UserBid
 from hashbidder.domain.hashrate import HashratePrice, HashUnit
@@ -16,9 +15,7 @@ from hashbidder.reconcile import (
     EditAction,
     ReconciliationPlan,
 )
-
-if TYPE_CHECKING:
-    from hashbidder.use_cases import ActionOutcome
+from hashbidder.use_cases import ActionOutcome, ActionStatus
 
 
 def _fmt_speed(value: Decimal) -> str:
@@ -190,31 +187,34 @@ def format_plan(plan: ReconciliationPlan, skipped_bids: tuple[UserBid, ...]) -> 
     return "\n".join(sections)
 
 
-def format_create_label(create: CreateAction) -> str:
-    """Format the label for a create action (used in execution output)."""
-    price = _to_ph_day(create.config.price)
-    speed = _fmt_speed(create.config.speed_limit.value)
+def _action_label(action: CancelAction | EditAction | CreateAction) -> str:
+    """Build a human-readable label for an action."""
+    if isinstance(action, CancelAction):
+        return f"CANCEL {action.bid.id}"
+    if isinstance(action, EditAction):
+        return f"EDIT {action.bid.id}"
+    price = _to_ph_day(action.config.price)
+    speed = _fmt_speed(action.config.speed_limit.value)
     return f"CREATE {price} sat/PH/Day {speed} PH/s"
 
 
 def format_outcome(outcome: ActionOutcome) -> str:
     """Format a single action outcome for real-time execution output."""
-    if outcome.status.value == "succeeded":
+    label = _action_label(outcome.action)
+    if outcome.status == ActionStatus.SUCCEEDED:
         suffix = "OK"
         if outcome.created_id:
             suffix = f"OK \u2192 {outcome.created_id}"
-        return f"{outcome.label}... {suffix}"
-    if outcome.status.value == "failed":
+        return f"{label}... {suffix}"
+    if outcome.status == ActionStatus.FAILED:
         error_part = f": {outcome.error}" if outcome.error else ""
-        return f"{outcome.label}... FAILED{error_part}"
+        return f"{label}... FAILED{error_part}"
     # skipped
     return "  skipping linked CREATE (upstream mismatch pair)"
 
 
 def format_results_summary(outcomes: tuple[ActionOutcome, ...]) -> str:
     """Format the results summary line."""
-    from hashbidder.use_cases import ActionStatus
-
     succeeded = sum(1 for o in outcomes if o.status == ActionStatus.SUCCEEDED)
     failed = sum(1 for o in outcomes if o.status == ActionStatus.FAILED)
     skipped = sum(1 for o in outcomes if o.status == ActionStatus.SKIPPED)
