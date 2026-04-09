@@ -12,7 +12,7 @@ import httpx
 from dotenv import load_dotenv
 
 from hashbidder import use_cases
-from hashbidder.client import API_BASE, BraiinsClient, HashpowerClient
+from hashbidder.client import API_BASE, ApiError, BraiinsClient, HashpowerClient
 from hashbidder.config import load_config
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
@@ -33,6 +33,8 @@ def _api_errors() -> Iterator[None]:
     """Translate httpx/ValueError exceptions into ClickExceptions."""
     try:
         yield
+    except ApiError as e:
+        raise click.ClickException(f"API error: {e.message}") from e
     except ValueError as e:
         raise click.ClickException(str(e)) from e
     except httpx.TimeoutException:
@@ -82,7 +84,8 @@ def cli(ctx: click.Context, verbose: bool, log_file: Path | None) -> None:
     _setup_logging(verbose, log_file)
     if ctx.obj is None:
         api_key = os.environ.get("BRAIINS_API_KEY")
-        ctx.obj = BraiinsClient(API_BASE, api_key=api_key)
+        http_client = httpx.Client(timeout=10.0)
+        ctx.obj = BraiinsClient(API_BASE, api_key=api_key, http_client=http_client)
 
 
 @cli.command()
