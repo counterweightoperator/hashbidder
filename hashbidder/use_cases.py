@@ -15,6 +15,9 @@ from hashbidder.client import (
     UserBid,
 )
 from hashbidder.config import SetBidsConfig
+from hashbidder.domain.sats import Sats
+from hashbidder.hashvalue import HashvalueComponents, compute_hashvalue
+from hashbidder.mempool_client import MempoolSource
 from hashbidder.reconcile import (
     MANAGEABLE_STATUSES,
     CancelAction,
@@ -51,6 +54,24 @@ def get_current_bids(client: HashpowerClient) -> tuple[UserBid, ...]:
         The user's currently active spot bids.
     """
     return client.get_current_bids()
+
+
+def get_hashvalue(mempool: MempoolSource) -> HashvalueComponents:
+    """Compute the current hashvalue from on-chain data.
+
+    Args:
+        mempool: The mempool data source to use.
+
+    Returns:
+        All intermediate components and the final hashvalue.
+    """
+    tip = mempool.get_tip()
+    stats = mempool.get_reward_stats(2016)
+    return compute_hashvalue(
+        difficulty=tip.difficulty,
+        tip_height=tip.height,
+        total_fees=Sats(stats.total_fee),
+    )
 
 
 @dataclass(frozen=True)
