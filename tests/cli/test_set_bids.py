@@ -4,7 +4,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from hashbidder.main import cli
+from hashbidder.main import Clients, cli
 from tests.conftest import OTHER_UPSTREAM, UPSTREAM, FakeClient, make_user_bid
 
 TOML_HEADER = """\
@@ -36,7 +36,7 @@ speed_limit_ph_s = 10.0
     result = runner.invoke(
         cli,
         ["set-bids", "--bid-config", str(config_file), "--dry-run"],
-        obj=FakeClient(),
+        obj=Clients(braiins=FakeClient()),
     )
 
     assert result.exit_code == 0
@@ -71,7 +71,7 @@ speed_limit_ph_s = 5.0
     result = runner.invoke(
         cli,
         ["set-bids", "--bid-config", str(config_file), "--dry-run"],
-        obj=FakeClient(current_bids=existing_bids),
+        obj=Clients(braiins=FakeClient(current_bids=existing_bids)),
     )
 
     assert result.exit_code == 0
@@ -91,7 +91,7 @@ def test_invalid_config(tmp_path: Path) -> None:
     result = runner.invoke(
         cli,
         ["set-bids", "--bid-config", str(config_file), "--dry-run"],
-        obj=FakeClient(),
+        obj=Clients(braiins=FakeClient()),
     )
 
     assert result.exit_code != 0
@@ -107,7 +107,7 @@ def test_without_dry_run_no_changes(tmp_path: Path) -> None:
     result = runner.invoke(
         cli,
         ["set-bids", "--bid-config", str(config_file)],
-        obj=FakeClient(),
+        obj=Clients(braiins=FakeClient()),
     )
 
     assert result.exit_code == 0
@@ -136,7 +136,7 @@ speed_limit_ph_s = 5.0
     client = FakeClient(current_bids=existing_bids)
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["set-bids", "--bid-config", str(config_file)], obj=client
+        cli, ["set-bids", "--bid-config", str(config_file)], obj=Clients(braiins=client)
     )
 
     assert result.exit_code == 0
@@ -170,7 +170,7 @@ speed_limit_ph_s = 10.0
     client = FakeClient()
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["set-bids", "--bid-config", str(config_file)], obj=client
+        cli, ["set-bids", "--bid-config", str(config_file)], obj=Clients(braiins=client)
     )
 
     assert result.exit_code == 0
@@ -198,7 +198,7 @@ speed_limit_ph_s = 5.0
     result = runner.invoke(
         cli,
         ["set-bids", "--bid-config", str(config_file)],
-        obj=FakeClient(current_bids=existing_bids),
+        obj=Clients(braiins=FakeClient(current_bids=existing_bids)),
     )
 
     assert result.exit_code == 0
@@ -223,7 +223,7 @@ speed_limit_ph_s = 5.0
     client = FakeClient(current_bids=existing_bids)
     runner = CliRunner()
     result = runner.invoke(
-        cli, ["set-bids", "--bid-config", str(config_file)], obj=client
+        cli, ["set-bids", "--bid-config", str(config_file)], obj=Clients(braiins=client)
     )
 
     assert result.exit_code == 0

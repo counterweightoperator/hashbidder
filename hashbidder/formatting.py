@@ -8,6 +8,7 @@ from hashbidder.client import UserBid
 from hashbidder.domain.hashrate import HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.hashvalue import HashvalueComponents
 from hashbidder.reconcile import (
     CancelAction,
     CancelReason,
@@ -246,4 +247,25 @@ def format_current_bids(bids: tuple[UserBid, ...]) -> str:
             f"amount={bid.amount_sat} sat  "
             f"{bid.status.name}"
         )
+    return "\n".join(lines)
+
+
+def format_hashvalue(components: HashvalueComponents) -> str:
+    """Format hashvalue as a single line."""
+    return f"Hashvalue: {components.hashvalue.sats} sat/PH/Day"
+
+
+def format_hashvalue_verbose(components: HashvalueComponents, mempool_url: str) -> str:
+    """Format hashvalue with all intermediate components."""
+    lines = [
+        format_hashvalue(components),
+        "",
+        f"  Tip height:       {components.tip_height}",
+        f"  Block subsidy:    {components.subsidy} sat",
+        f"  Total fees (2016): {components.total_fees} sat",
+        f"  Total reward (2016): {components.total_reward} sat",
+        f"  Difficulty:       {components.difficulty}",
+        f"  Network hashrate: {components.network_hashrate:.2E} H/s",
+        f"  Mempool instance: {mempool_url}",
+    ]
     return "\n".join(lines)

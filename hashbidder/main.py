@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import click
@@ -18,10 +19,27 @@ from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.formatting import (
     format_current_bids,
+    format_hashvalue,
+    format_hashvalue_verbose,
     format_outcome,
     format_plan,
     format_results_summary,
 )
+from hashbidder.mempool_client import (
+    DEFAULT_MEMPOOL_URL,
+    MempoolClient,
+    MempoolError,
+    MempoolSource,
+)
+
+
+@dataclass
+class Clients:
+    """Shared dependencies for CLI commands."""
+
+    braiins: HashpowerClient | None = field(default=None)
+    mempool: MempoolSource | None = field(default=None)
+
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
@@ -43,6 +61,19 @@ def _api_errors() -> Iterator[None]:
         raise click.ClickException(
             f"HTTP {e.response.status_code}: {e.response.text}"
         ) from e
+    except httpx.RequestError as e:
+        raise click.ClickException(f"Connection error: {e}") from e
+
+
+@contextlib.contextmanager
+def _mempool_errors() -> Iterator[None]:
+    """Translate mempool/httpx exceptions into ClickExceptions."""
+    try:
+        yield
+    except MempoolError as e:
+        raise click.ClickException(f"Mempool error: {e.message}") from e
+    except httpx.TimeoutException:
+        raise click.ClickException("Request timed out.")
     except httpx.RequestError as e:
         raise click.ClickException(f"Connection error: {e}") from e
 
@@ -83,33 +114,42 @@ def cli(ctx: click.Context, verbose: bool, log_file: Path | None) -> None:
     load_dotenv()
     _setup_logging(verbose, log_file)
     if ctx.obj is None:
+        ctx.obj = Clients()
+    app: Clients = ctx.obj
+    if app.braiins is None:
         api_key = os.environ.get("BRAIINS_API_KEY")
         http_client = httpx.Client(timeout=10.0)
-        ctx.obj = BraiinsClient(API_BASE, api_key=api_key, http_client=http_client)
+        app.braiins = BraiinsClient(API_BASE, api_key=api_key, http_client=http_client)
+    if app.mempool is None:
+        env_url = os.environ.get("MEMPOOL_URL")
+        mempool_url = httpx.URL(env_url) if env_url else DEFAULT_MEMPOOL_URL
+        app.mempool = MempoolClient(mempool_url, httpx.Client(timeout=10.0))
 
 
 @cli.command()
 @click.pass_obj
-def ping(client: HashpowerClient) -> None:
+def ping(app: Clients) -> None:
     """Check connectivity to the Braiins Hashpower API.
 
     Hits the public /spot/orderbook endpoint and prints a summary
     to confirm the API is reachable.
     """
+    assert app.braiins is not None
     logger.debug("Fetching order book")
     with _api_errors():
-        book = use_cases.ping(client)
+        book = use_cases.ping(app.braiins)
     logger.debug("Order book: %d bids, %d asks", len(book.bids), len(book.asks))
     click.echo(f"OK — order book: {len(book.bids)} bids, {len(book.asks)} asks")
 
 
 @cli.command()
 @click.pass_obj
-def bids(client: HashpowerClient) -> None:
+def bids(app: Clients) -> None:
     """List your currently active bids."""
+    assert app.braiins is not None
     logger.debug("Fetching current bids")
     with _api_errors():
-        current_bids = use_cases.get_current_bids(client)
+        current_bids = use_cases.get_current_bids(app.braiins)
 
     if not current_bids:
         click.echo("No active bids.")
@@ -126,6 +166,23 @@ def bids(client: HashpowerClient) -> None:
         )
 
 
+@cli.command()
+@click.pass_context
+def hashvalue(ctx: click.Context) -> None:
+    """Compute the current hashvalue (sat/PH/Day) from on-chain data."""
+    app: Clients = ctx.obj
+    assert app.mempool is not None
+    with _mempool_errors():
+        components = use_cases.get_hashvalue(app.mempool)
+
+    verbose = ctx.parent is not None and ctx.parent.params.get("verbose", False)
+    mempool_url = os.environ.get("MEMPOOL_URL") or str(DEFAULT_MEMPOOL_URL)
+    if verbose:
+        click.echo(format_hashvalue_verbose(components, mempool_url))
+    else:
+        click.echo(format_hashvalue(components))
+
+
 @cli.command("set-bids")
 @click.option(
     "--bid-config",
@@ -137,13 +194,14 @@ def bids(client: HashpowerClient) -> None:
     "--dry-run", is_flag=True, help="Print what would change without executing."
 )
 @click.pass_obj
-def set_bids(client: HashpowerClient, bid_config: Path, dry_run: bool) -> None:
+def set_bids(app: Clients, bid_config: Path, dry_run: bool) -> None:
     """Set bids to match a config file."""
+    assert app.braiins is not None
     with _api_errors():
         config = load_config(bid_config)
 
     with _api_errors():
-        result = use_cases.set_bids(client, config)
+        result = use_cases.set_bids(app.braiins, config)
 
     plan = result.plan
     has_changes = plan.edits or plan.creates or plan.cancels
@@ -157,7 +215,7 @@ def set_bids(client: HashpowerClient, bid_config: Path, dry_run: bool) -> None:
         return
 
     click.echo("=== Executing Changes ===")
-    exec_result = use_cases.execute_plan(client, plan)
+    exec_result = use_cases.execute_plan(app.braiins, plan)
 
     for outcome in exec_result.outcomes:
         click.echo(format_outcome(outcome))
