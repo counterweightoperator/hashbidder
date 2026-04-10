@@ -8,7 +8,7 @@ from hashbidder.client import AskItem, BidItem, OrderBook
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.main import cli
+from hashbidder.main import Clients, cli
 from tests.conftest import FakeClient
 
 
@@ -38,7 +38,9 @@ def test_ping_prints_orderbook_summary() -> None:
     )
 
     runner = CliRunner()
-    result = runner.invoke(cli, ["ping"], obj=FakeClient(orderbook=book))
+    result = runner.invoke(
+        cli, ["ping"], obj=Clients(braiins=FakeClient(orderbook=book))
+    )
 
     assert result.exit_code == 0
     assert result.output == "OK — order book: 10 bids, 4 asks\n"

@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.sats import Sats
-from hashbidder.main import cli
+from hashbidder.main import Clients, cli
 from hashbidder.mempool_client import ChainStats, MempoolError
 from tests.conftest import FakeMempoolSource
 
@@ -21,7 +21,7 @@ def test_hashvalue_prints_result() -> None:
     """Hashvalue command prints a single line with the value."""
     source = FakeMempoolSource(chain_stats=CHAIN_STATS)
     runner = CliRunner()
-    result = runner.invoke(cli, ["hashvalue"], obj={"mempool": source})
+    result = runner.invoke(cli, ["hashvalue"], obj=Clients(mempool=source))
 
     assert result.exit_code == 0
     assert "67853502 sat/PH/Day" in result.output
@@ -31,7 +31,7 @@ def test_hashvalue_verbose() -> None:
     """Verbose flag includes intermediate components."""
     source = FakeMempoolSource(chain_stats=CHAIN_STATS)
     runner = CliRunner()
-    result = runner.invoke(cli, ["-v", "hashvalue"], obj={"mempool": source})
+    result = runner.invoke(cli, ["-v", "hashvalue"], obj=Clients(mempool=source))
 
     assert result.exit_code == 0
     assert "840000" in result.output
@@ -46,7 +46,7 @@ def test_hashvalue_error() -> None:
         error=MempoolError(503, "service unavailable"),
     )
     runner = CliRunner()
-    result = runner.invoke(cli, ["hashvalue"], obj={"mempool": source})
+    result = runner.invoke(cli, ["hashvalue"], obj=Clients(mempool=source))
 
     assert result.exit_code != 0
     assert "service unavailable" in result.output
