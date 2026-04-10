@@ -74,6 +74,10 @@ OK — order book: 70 bids, 8 asks
 $ uv run hashbidder bids
 B123456789        ACTIVE  price=500 sat/1 EH/Day  limit=5.0 PH/Second  ...
 
+# Compute the current hashvalue from on-chain data
+$ uv run hashbidder hashvalue
+Hashvalue: 45469 sat/PH/Day
+
 # Reconcile your open bids with a config file.
 # --dry-run shows what would change without touching anything.
 $ uv run hashbidder set-bids --bid-config bids.toml --dry-run
