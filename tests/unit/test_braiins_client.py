@@ -109,8 +109,8 @@ class TestEditBid:
 class TestCancelBid:
     """Tests for BraiinsClient.cancel_bid serialization."""
 
-    def test_request_params(self) -> None:
-        """Cancel sends order_id as query parameter via DELETE."""
+    def test_request_body(self) -> None:
+        """Cancel sends order_id in JSON body via DELETE."""
         captured: list[httpx.Request] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -122,7 +122,8 @@ class TestCancelBid:
 
         req = captured[0]
         assert req.method == "DELETE"
-        assert "order_id=B456" in str(req.url)
+        body = json.loads(req.content)
+        assert body["order_id"] == "B456"
         assert req.headers["apikey"] == API_KEY
 
 
@@ -146,8 +147,29 @@ class TestApiErrorParsing:
             assert e.message == "grace period not elapsed"
             assert not e.is_transient
 
+    def test_json_body_message_extracted(self) -> None:
+        """A JSON body with a 'message' field is extracted into ApiError."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                403,
+                json={
+                    "message": "You cannot consume this service",
+                    "request_id": "abc123",
+                },
+            )
+
+        client = _make_client(httpx.MockTransport(handler))
+
+        try:
+            client.cancel_bid(BidId("B1"))
+            raise AssertionError("Expected ApiError")  # noqa: TRY301
+        except ApiError as e:
+            assert e.status_code == 403
+            assert e.message == "You cannot consume this service"
+
     def test_fallback_to_response_text(self) -> None:
-        """Without grpc-message, falls back to response body text."""
+        """Without grpc-message or JSON message, falls back to response body text."""
 
         def handler(_request: httpx.Request) -> httpx.Response:
             return httpx.Response(400, text="bad request body")

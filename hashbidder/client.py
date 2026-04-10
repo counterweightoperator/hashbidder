@@ -191,7 +191,12 @@ class BraiinsClient:
         if grpc_msg:
             message = unquote(grpc_msg)
         else:
-            message = response.text or response.reason_phrase or "Unknown error"
+            # Try JSON body with a "message" field.
+            try:
+                data = response.json()
+                message = data["message"]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                message = response.text or response.reason_phrase or "Unknown error"
         raise ApiError(response.status_code, message)
 
     def _price_to_api_sats(self, price: HashratePrice) -> int:
@@ -331,6 +336,7 @@ class BraiinsClient:
         }
         logger.debug("POST %s %s", url, body)
         response = self._http.post(url, json=body, headers=self._auth_headers())
+        logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         if not response.is_success:
             self._raise_api_error(response)
         data: dict[str, str] = response.json()
@@ -355,6 +361,7 @@ class BraiinsClient:
         }
         logger.debug("PUT %s %s", url, body)
         response = self._http.put(url, json=body, headers=self._auth_headers())
+        logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         if not response.is_success:
             self._raise_api_error(response)
 
@@ -365,9 +372,11 @@ class BraiinsClient:
             ApiError: If the API returns a non-2xx response.
         """
         url = f"{self._base_url}{self._SPOT_BID_PATH}"
-        logger.debug("DELETE %s order_id=%s", url, order_id)
-        response = self._http.delete(
-            url, params={"order_id": order_id}, headers=self._auth_headers()
+        body = {"order_id": order_id}
+        logger.debug("DELETE %s %s", url, body)
+        response = self._http.request(
+            "DELETE", url, json=body, headers=self._auth_headers()
         )
+        logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         if not response.is_success:
             self._raise_api_error(response)
