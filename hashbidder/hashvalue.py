@@ -3,15 +3,16 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
+from hashbidder.domain.bitcoin import (
+    BLOCK_TIME_SECONDS,
+    BLOCKS_PER_DAY,
+    BLOCKS_PER_EPOCH,
+)
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.block_subsidy import block_subsidy
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-
-BLOCKS_PER_EPOCH = 2016
-BLOCKS_PER_DAY = 144
-BLOCK_TIME_SECONDS = 600
 
 
 @dataclass(frozen=True)
@@ -38,10 +39,13 @@ def compute_hashvalue(
     """
     subsidy = block_subsidy(tip_height)
     total_reward = Sats(BLOCKS_PER_EPOCH * subsidy + total_fees)
-    avg_reward = Decimal(total_reward) / BLOCKS_PER_EPOCH
+    avg_reward = Sats(round(total_reward / BLOCKS_PER_EPOCH))
     network_hashrate = difficulty * Decimal(2**32) / BLOCK_TIME_SECONDS
     hashvalue = (
-        avg_reward * BLOCKS_PER_DAY * Decimal(HashUnit.PH.value) / network_hashrate
+        Decimal(avg_reward)
+        * BLOCKS_PER_DAY
+        * Decimal(HashUnit.PH.value)
+        / network_hashrate
     )
 
     return HashvalueComponents(
