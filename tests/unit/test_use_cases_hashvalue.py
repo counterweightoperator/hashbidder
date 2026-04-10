@@ -6,7 +6,7 @@ import pytest
 
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.sats import Sats
-from hashbidder.mempool_client import BlockTipInfo, MempoolError, RewardStats
+from hashbidder.mempool_client import ChainStats, MempoolError
 from hashbidder.use_cases import get_hashvalue
 from tests.conftest import FakeMempoolSource
 
@@ -17,11 +17,11 @@ class TestGetHashvalue:
     def test_happy_path(self) -> None:
         """Returns expected components from canned mempool data."""
         source = FakeMempoolSource(
-            tip=BlockTipInfo(
-                height=BlockHeight(840_000),
+            chain_stats=ChainStats(
+                tip_height=BlockHeight(840_000),
                 difficulty=Decimal("100_000_000_000"),
+                total_fee=Sats(50_000_000_000),
             ),
-            reward_stats=RewardStats(total_fee=Sats(50_000_000_000)),
         )
 
         result = get_hashvalue(source)
@@ -34,11 +34,11 @@ class TestGetHashvalue:
     def test_error_propagates(self) -> None:
         """MempoolError from source propagates to caller."""
         source = FakeMempoolSource(
-            tip=BlockTipInfo(
-                height=BlockHeight(0),
+            chain_stats=ChainStats(
+                tip_height=BlockHeight(0),
                 difficulty=Decimal("1"),
+                total_fee=Sats(0),
             ),
-            reward_stats=RewardStats(total_fee=Sats(0)),
             error=MempoolError(503, "service unavailable"),
         )
 

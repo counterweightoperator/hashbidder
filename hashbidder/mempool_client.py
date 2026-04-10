@@ -27,36 +27,25 @@ class MempoolError(Exception):
 
 
 @dataclass(frozen=True)
-class BlockTipInfo:
-    """Current chain tip info."""
+class ChainStats:
+    """Chain tip info and reward statistics over a block range."""
 
-    height: BlockHeight
+    tip_height: BlockHeight
     difficulty: Decimal
-
-
-@dataclass(frozen=True)
-class RewardStats:
-    """Mining reward statistics over a range of blocks."""
-
     total_fee: Sats
 
 
 class MempoolSource(Protocol):
     """Protocol for mempool data sources."""
 
-    def get_tip(self) -> BlockTipInfo:
-        """Fetch the current chain tip height and difficulty."""
-        ...
-
-    def get_reward_stats(self, block_count: int) -> RewardStats:
-        """Fetch reward statistics over the last block_count blocks."""
+    def get_chain_stats(self, block_count: int) -> ChainStats:
+        """Fetch chain tip and reward stats for the last block_count blocks."""
         ...
 
 
 class MempoolClient:
     """HTTP client for the mempool.space API."""
 
-    _TIP_HEIGHT_PATH = "/api/blocks/tip/height"
     _BLOCKS_PATH = "/api/v1/blocks"
     _REWARD_STATS_PATH = "/api/v1/mining/reward-stats"
 
@@ -77,41 +66,51 @@ class MempoolClient:
             response.text or response.reason_phrase or "Unknown error",
         )
 
-    def get_tip(self) -> BlockTipInfo:
-        """Fetch the current chain tip height and difficulty.
+    def get_chain_stats(self, block_count: int) -> ChainStats:
+        """Fetch chain tip and reward stats atomically.
 
         Raises:
             MempoolError: If the API returns a non-2xx response.
         """
-        # Get tip height.
-        height_url = f"{self._base_url}{self._TIP_HEIGHT_PATH}"
-        logger.debug("GET %s", height_url)
-        resp = self._http.get(height_url)
+        # Why we extract the tip height from reward-stats instead of
+        # calling /api/blocks/tip/height:
+        #
+        # We need three values that must be consistent with each other:
+        # tip height, total fees over the last N blocks, and difficulty
+        # at the tip. The mempool.space API has no single endpoint that
+        # returns all three, so we need at least two calls.
+        #
+        # If we fetched the tip height separately, a new block could be
+        # mined between the two requests: tip would be N+1, but fees
+        # would still cover blocks ending at N — a silent inconsistency
+        # that skews the hashvalue calculation.
+        #
+        # The reward-stats endpoint conveniently includes an `endBlock`
+        # field: the height of the last block in the fee window. By
+        # using that as our tip, the height and fees are guaranteed to
+        # refer to the same range. The second call (fetching difficulty
+        # for that specific block) is safe because difficulty is an
+        # immutable property of a mined block — it can't change after
+        # the fact.
+        stats_url = f"{self._base_url}{self._REWARD_STATS_PATH}/{block_count}"
+        logger.debug("GET %s", stats_url)
+        resp = self._http.get(stats_url)
         if not resp.is_success:
             self._raise_error(resp)
-        height = BlockHeight(int(resp.text))
+        data: dict[str, object] = resp.json()
+        tip_height = BlockHeight(int(str(data["endBlock"])))
+        total_fee = Sats(int(str(data["totalFee"])))
 
-        # Get block at that height for difficulty.
-        block_url = f"{self._base_url}{self._BLOCKS_PATH}/{height.value}"
+        # Get difficulty for the tip block.
+        block_url = f"{self._base_url}{self._BLOCKS_PATH}/{tip_height.value}"
         logger.debug("GET %s", block_url)
         resp = self._http.get(block_url)
         if not resp.is_success:
             self._raise_error(resp)
         blocks: list[dict[str, object]] = json.loads(resp.text, parse_float=Decimal)
-        return BlockTipInfo(
-            height=height, difficulty=Decimal(str(blocks[0]["difficulty"]))
+
+        return ChainStats(
+            tip_height=tip_height,
+            difficulty=Decimal(str(blocks[0]["difficulty"])),
+            total_fee=total_fee,
         )
-
-    def get_reward_stats(self, block_count: int) -> RewardStats:
-        """Fetch reward statistics over the last block_count blocks.
-
-        Raises:
-            MempoolError: If the API returns a non-2xx response.
-        """
-        url = f"{self._base_url}{self._REWARD_STATS_PATH}/{block_count}"
-        logger.debug("GET %s", url)
-        resp = self._http.get(url)
-        if not resp.is_success:
-            self._raise_error(resp)
-        data: dict[str, object] = resp.json()
-        return RewardStats(total_fee=Sats(int(str(data["totalFee"]))))

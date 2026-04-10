@@ -7,16 +7,19 @@ from click.testing import CliRunner
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.sats import Sats
 from hashbidder.main import cli
-from hashbidder.mempool_client import BlockTipInfo, MempoolError, RewardStats
+from hashbidder.mempool_client import ChainStats, MempoolError
 from tests.conftest import FakeMempoolSource
 
-TIP = BlockTipInfo(height=BlockHeight(840_000), difficulty=Decimal("100_000_000_000"))
-STATS = RewardStats(total_fee=Sats(50_000_000_000))
+CHAIN_STATS = ChainStats(
+    tip_height=BlockHeight(840_000),
+    difficulty=Decimal("100_000_000_000"),
+    total_fee=Sats(50_000_000_000),
+)
 
 
 def test_hashvalue_prints_result() -> None:
     """Hashvalue command prints a single line with the value."""
-    source = FakeMempoolSource(tip=TIP, reward_stats=STATS)
+    source = FakeMempoolSource(chain_stats=CHAIN_STATS)
     runner = CliRunner()
     result = runner.invoke(cli, ["hashvalue"], obj={"mempool": source})
 
@@ -26,7 +29,7 @@ def test_hashvalue_prints_result() -> None:
 
 def test_hashvalue_verbose() -> None:
     """Verbose flag includes intermediate components."""
-    source = FakeMempoolSource(tip=TIP, reward_stats=STATS)
+    source = FakeMempoolSource(chain_stats=CHAIN_STATS)
     runner = CliRunner()
     result = runner.invoke(cli, ["-v", "hashvalue"], obj={"mempool": source})
 
@@ -39,8 +42,7 @@ def test_hashvalue_verbose() -> None:
 def test_hashvalue_error() -> None:
     """Mempool error results in non-zero exit code."""
     source = FakeMempoolSource(
-        tip=TIP,
-        reward_stats=STATS,
+        chain_stats=CHAIN_STATS,
         error=MempoolError(503, "service unavailable"),
     )
     runner = CliRunner()

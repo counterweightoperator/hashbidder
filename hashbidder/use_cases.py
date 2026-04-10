@@ -16,7 +16,6 @@ from hashbidder.client import (
 )
 from hashbidder.config import SetBidsConfig
 from hashbidder.domain.bitcoin import BLOCKS_PER_EPOCH
-from hashbidder.domain.sats import Sats
 from hashbidder.hashvalue import HashvalueComponents, compute_hashvalue
 from hashbidder.mempool_client import MempoolSource
 from hashbidder.reconcile import (
@@ -66,12 +65,11 @@ def get_hashvalue(mempool: MempoolSource) -> HashvalueComponents:
     Returns:
         All intermediate components and the final hashvalue.
     """
-    tip = mempool.get_tip()
-    stats = mempool.get_reward_stats(BLOCKS_PER_EPOCH)
+    stats = mempool.get_chain_stats(BLOCKS_PER_EPOCH)
     return compute_hashvalue(
-        difficulty=tip.difficulty,
-        tip_height=tip.height,
-        total_fees=Sats(stats.total_fee),
+        difficulty=stats.difficulty,
+        tip_height=stats.tip_height,
+        total_fees=stats.total_fee,
     )
 
 
