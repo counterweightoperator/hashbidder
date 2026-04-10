@@ -13,6 +13,8 @@ from hashbidder.domain.sats import Sats
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MEMPOOL_URL = httpx.URL("https://mempool.bitcoinbarcelona.xyz")
+
 
 class MempoolError(Exception):
     """An error returned by the mempool.space API."""

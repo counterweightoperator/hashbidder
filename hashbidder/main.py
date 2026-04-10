@@ -18,9 +18,17 @@ from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.formatting import (
     format_current_bids,
+    format_hashvalue,
+    format_hashvalue_verbose,
     format_outcome,
     format_plan,
     format_results_summary,
+)
+from hashbidder.mempool_client import (
+    DEFAULT_MEMPOOL_URL,
+    MempoolClient,
+    MempoolError,
+    MempoolSource,
 )
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -43,6 +51,19 @@ def _api_errors() -> Iterator[None]:
         raise click.ClickException(
             f"HTTP {e.response.status_code}: {e.response.text}"
         ) from e
+    except httpx.RequestError as e:
+        raise click.ClickException(f"Connection error: {e}") from e
+
+
+@contextlib.contextmanager
+def _mempool_errors() -> Iterator[None]:
+    """Translate mempool/httpx exceptions into ClickExceptions."""
+    try:
+        yield
+    except MempoolError as e:
+        raise click.ClickException(f"Mempool error: {e.message}") from e
+    except httpx.TimeoutException:
+        raise click.ClickException("Request timed out.")
     except httpx.RequestError as e:
         raise click.ClickException(f"Connection error: {e}") from e
 
@@ -124,6 +145,29 @@ def bids(client: HashpowerClient) -> None:
             f"remaining={bid.amount_remaining_sat} sat  "
             f"progress={bid.progress}"
         )
+
+
+@cli.command()
+@click.pass_context
+def hashvalue(ctx: click.Context) -> None:
+    """Compute the current hashvalue (sat/PH/Day) from on-chain data."""
+    env_url = os.environ.get("MEMPOOL_URL")
+    mempool_url = httpx.URL(env_url) if env_url else DEFAULT_MEMPOOL_URL
+    mempool: MempoolSource | None = (
+        ctx.obj.get("mempool") if isinstance(ctx.obj, dict) else None
+    )
+    if mempool is None:
+        http_client = httpx.Client(timeout=10.0)
+        mempool = MempoolClient(mempool_url, http_client)
+
+    with _mempool_errors():
+        components = use_cases.get_hashvalue(mempool)
+
+    verbose = ctx.parent is not None and ctx.parent.params.get("verbose", False)
+    if verbose:
+        click.echo(format_hashvalue_verbose(components, str(mempool_url)))
+    else:
+        click.echo(format_hashvalue(components))
 
 
 @cli.command("set-bids")
