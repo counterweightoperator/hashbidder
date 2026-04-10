@@ -18,6 +18,7 @@ from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.mempool_client import BlockTipInfo, MempoolError, RewardStats
 
 UPSTREAM = Upstream(
     url=StratumUrl("stratum+tcp://pool.example.com:3333"), identity="worker1"
@@ -169,3 +170,34 @@ class FakeClient:
                 del self._bids[i]
                 return
         raise ApiError(404, f"Bid {order_id} not found")
+
+
+class FakeMempoolSource:
+    """In-memory implementation of MempoolSource for testing.
+
+    Supports error injection: set `error` to a MempoolError and all
+    calls will raise it.
+    """
+
+    def __init__(
+        self,
+        tip: BlockTipInfo,
+        reward_stats: RewardStats,
+        error: MempoolError | None = None,
+    ) -> None:
+        """Initialize with canned data and optional error."""
+        self._tip = tip
+        self._reward_stats = reward_stats
+        self._error = error
+
+    def get_tip(self) -> BlockTipInfo:
+        """Return canned tip or raise injected error."""
+        if self._error:
+            raise self._error
+        return self._tip
+
+    def get_reward_stats(self, block_count: int) -> RewardStats:
+        """Return canned reward stats or raise injected error."""
+        if self._error:
+            raise self._error
+        return self._reward_stats
