@@ -1,10 +1,8 @@
 """Block subsidy derived from height using Bitcoin's halving schedule."""
 
+from hashbidder.domain.bitcoin import HALVING_INTERVAL, INITIAL_SUBSIDY
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.sats import Sats
-
-INITIAL_SUBSIDY = 5_000_000_000
-HALVING_INTERVAL = 210_000
 
 
 def block_subsidy(height: BlockHeight) -> Sats:
