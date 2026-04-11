@@ -111,6 +111,24 @@ class TestGetAccountStats:
                 BtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")
             )
 
+    def test_messy_whitespace_in_cells(self) -> None:
+        """Extra whitespace and newlines inside cells are handled."""
+        messy = _VALID_HTML.replace(
+            '<td class="table-cell">1885.8 Th/s</td>',
+            '<td class="table-cell">\n  1885.8  Th/s\n</td>',
+        )
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, text=messy)
+
+        client = _make_client(httpx.MockTransport(handler))
+        stats = client.get_account_stats(
+            BtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")
+        )
+
+        assert stats.windows[0].hashrate.value == Decimal("1885.8")
+        assert stats.windows[0].hashrate.hash_unit == HashUnit.TH
+
     def test_http_error(self) -> None:
         """Non-2xx response raises OceanError with status code."""
 
