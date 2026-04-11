@@ -5,6 +5,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
+from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.ocean_client import OceanClient, OceanError, OceanTimeWindow
@@ -53,7 +54,9 @@ class TestGetAccountStats:
             return httpx.Response(200, text=_VALID_HTML)
 
         client = _make_client(httpx.MockTransport(handler))
-        stats = client.get_account_stats("bc1qtest")
+        stats = client.get_account_stats(
+            BtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")
+        )
 
         assert len(stats.windows) == 5
         assert stats.windows[0].window == OceanTimeWindow.DAY
@@ -78,7 +81,9 @@ class TestGetAccountStats:
 
         client = _make_client(httpx.MockTransport(handler))
         with pytest.raises(OceanError, match="expected 5 rows"):
-            client.get_account_stats("bc1qtest")
+            client.get_account_stats(
+                BtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")
+            )
 
     def test_unexpected_period_label(self) -> None:
         """Wrong period label raises OceanError."""
@@ -89,7 +94,9 @@ class TestGetAccountStats:
 
         client = _make_client(httpx.MockTransport(handler))
         with pytest.raises(OceanError, match="expected period"):
-            client.get_account_stats("bc1qtest")
+            client.get_account_stats(
+                BtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")
+            )
 
     def test_unrecognized_unit(self) -> None:
         """Unknown hashrate unit raises OceanError."""
@@ -100,7 +107,9 @@ class TestGetAccountStats:
 
         client = _make_client(httpx.MockTransport(handler))
         with pytest.raises(OceanError, match="unrecognized hashrate unit"):
-            client.get_account_stats("bc1qtest")
+            client.get_account_stats(
+                BtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")
+            )
 
     def test_http_error(self) -> None:
         """Non-2xx response raises OceanError with status code."""
@@ -110,5 +119,7 @@ class TestGetAccountStats:
 
         client = _make_client(httpx.MockTransport(handler))
         with pytest.raises(OceanError) as exc_info:
-            client.get_account_stats("bc1qtest")
+            client.get_account_stats(
+                BtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")
+            )
         assert exc_info.value.status_code == 500

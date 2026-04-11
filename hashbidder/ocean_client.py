@@ -8,6 +8,7 @@ from typing import Protocol
 
 import httpx
 
+from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 
@@ -56,7 +57,7 @@ class AccountStats:
 class OceanSource(Protocol):
     """Protocol for Ocean data sources."""
 
-    def get_account_stats(self, address: str) -> AccountStats:
+    def get_account_stats(self, address: BtcAddress) -> AccountStats:
         """Fetch hashrate stats for the given address."""
         ...
 
@@ -118,14 +119,14 @@ class OceanClient:
         """Initialize with an httpx client."""
         self._http = http_client
 
-    def get_account_stats(self, address: str) -> AccountStats:
+    def get_account_stats(self, address: BtcAddress) -> AccountStats:
         """Fetch hashrate stats for the given address.
 
         Raises:
             OceanError: On HTTP errors or unexpected response schema.
         """
         url = f"{OCEAN_BASE_URL}{self._HASHRATE_ROWS_PATH}"
-        resp = self._http.get(url, params={"user": address})
+        resp = self._http.get(url, params={"user": address.value})
         if not resp.is_success:
             raise OceanError(
                 resp.status_code,
