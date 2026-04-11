@@ -230,6 +230,44 @@ class TestHashrate:
                 assert a < b
 
 
+class TestDisplayUnit:
+    """Tests for Hashrate.display_unit() auto-selection."""
+
+    def test_large_gh_converts_to_ph(self) -> None:
+        """1,885,800 GH/s should display as 1.8858 PH/s."""
+        h = Hashrate(Decimal("1885800"), HashUnit.GH, TimeUnit.SECOND)
+        result = h.display_unit()
+        assert result.hash_unit == HashUnit.PH
+        assert result.value == Decimal("1.8858")
+
+    def test_500_gh_stays_gh(self) -> None:
+        """500 GH/s already has int part in [1, 1000), stays as GH/s."""
+        h = Hashrate(Decimal("500"), HashUnit.GH, TimeUnit.SECOND)
+        result = h.display_unit()
+        assert result.hash_unit == HashUnit.GH
+        assert result.value == Decimal("500")
+
+    def test_zero_hashrate(self) -> None:
+        """Zero hashrate stays at the smallest unit (H)."""
+        h = Hashrate(Decimal("0"), HashUnit.TH, TimeUnit.SECOND)
+        result = h.display_unit()
+        assert result.hash_unit == HashUnit.H
+        assert result.value == Decimal("0")
+
+    def test_already_in_best_unit(self) -> None:
+        """A value already in the right unit stays there."""
+        h = Hashrate(Decimal("42"), HashUnit.TH, TimeUnit.SECOND)
+        result = h.display_unit()
+        assert result.hash_unit == HashUnit.TH
+        assert result.value == Decimal("42")
+
+    def test_preserves_time_unit(self) -> None:
+        """display_unit keeps the original time unit."""
+        h = Hashrate(Decimal("1885800"), HashUnit.GH, TimeUnit.DAY)
+        result = h.display_unit()
+        assert result.time_unit == TimeUnit.DAY
+
+
 class TestHashratePrice:
     """Tests for the HashratePrice domain type."""
 

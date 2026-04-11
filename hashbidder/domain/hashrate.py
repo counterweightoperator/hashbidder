@@ -74,6 +74,20 @@ class Hashrate:
             time_unit=time_unit,
         )
 
+    def display_unit(self) -> Hashrate:
+        """Convert to the largest unit where 1 <= int(value) < 1000.
+
+        For zero hashrate, returns in the smallest unit (H).
+        """
+        units = sorted(HashUnit, key=lambda u: u.value)
+        best = self.to(units[0], self.time_unit)
+        for unit in units:
+            converted = self.to(unit, self.time_unit)
+            int_part = int(converted.value)
+            if 1 <= int_part < 1000:
+                best = converted
+        return best
+
     def __str__(self) -> str:
         unit = f"{self.hash_unit.name}/{self.time_unit.name.capitalize()}"
         return f"{self.value.normalize()} {unit}"
