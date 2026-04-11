@@ -59,8 +59,8 @@ def _api_errors() -> Iterator[None]:
         raise click.ClickException(f"API error: {e.message}") from e
     except ValueError as e:
         raise click.ClickException(str(e)) from e
-    except httpx.TimeoutException:
-        raise click.ClickException("Request timed out.")
+    except httpx.TimeoutException as e:
+        raise click.ClickException("Request timed out.") from e
     except httpx.HTTPStatusError as e:
         raise click.ClickException(
             f"HTTP {e.response.status_code}: {e.response.text}"
@@ -76,8 +76,8 @@ def _mempool_errors() -> Iterator[None]:
         yield
     except MempoolError as e:
         raise click.ClickException(f"Mempool error: {e.message}") from e
-    except httpx.TimeoutException:
-        raise click.ClickException("Request timed out.")
+    except httpx.TimeoutException as e:
+        raise click.ClickException("Request timed out.") from e
     except httpx.RequestError as e:
         raise click.ClickException(f"Connection error: {e}") from e
 
@@ -89,8 +89,8 @@ def _ocean_errors() -> Iterator[None]:
         yield
     except OceanError as e:
         raise click.ClickException(f"Ocean error: {e.message}") from e
-    except httpx.TimeoutException:
-        raise click.ClickException("Request timed out.")
+    except httpx.TimeoutException as e:
+        raise click.ClickException("Request timed out.") from e
     except httpx.RequestError as e:
         raise click.ClickException(f"Connection error: {e}") from e
 
