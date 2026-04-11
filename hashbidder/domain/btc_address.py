@@ -1,16 +1,12 @@
 """Bitcoin address primitive with structural and checksum validation.
 
 Bech32/bech32m checksum logic adapted from the BIP173/BIP350 reference
-implementation by Pieter Wuille (MIT license).
+implementation (MIT license).
 Base58check logic uses stdlib hashlib for the double-SHA256 checksum.
 """
 
 import hashlib
 import re
-
-# ---------------------------------------------------------------------------
-# Base58check (P2PKH / P2SH)
-# ---------------------------------------------------------------------------
 
 _BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 _BASE58_RE = re.compile(f"^[{_BASE58_ALPHABET}]+$")
@@ -44,10 +40,6 @@ def _validate_base58check(value: str) -> None:
     if checksum != expected:
         raise ValueError(f"Base58check checksum mismatch: {value!r}")
 
-
-# ---------------------------------------------------------------------------
-# Bech32 / bech32m (P2WPKH / P2WSH / P2TR)
-# ---------------------------------------------------------------------------
 
 _BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 _BECH32_MAP = {c: i for i, c in enumerate(_BECH32_CHARSET)}
@@ -98,11 +90,6 @@ def _validate_bech32(value: str) -> None:
         expected = _BECH32M_CONST
     if const != expected:
         raise ValueError(f"Bech32 checksum mismatch: {value!r}")
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def _validate(value: str) -> None:
