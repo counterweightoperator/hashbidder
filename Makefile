@@ -1,4 +1,4 @@
-.PHONY: format lint typecheck test check
+.PHONY: format lint typecheck imports test check
 
 format:
 	uv run ruff format .
@@ -10,7 +10,10 @@ lint:
 typecheck:
 	uv run mypy .
 
+imports:
+	uv run lint-imports
+
 test:
 	uv run pytest -v
 
-check: format lint typecheck test
+check: format lint typecheck imports test

@@ -84,10 +84,7 @@ def _validate_bech32(value: str) -> None:
     const = _bech32_polymod(_bech32_hrp_expand("bc") + data)
     # Witness version 0 uses bech32, versions 1+ use bech32m.
     witness_version = data[0]
-    if witness_version == 0:
-        expected = _BECH32_CONST
-    else:
-        expected = _BECH32M_CONST
+    expected = _BECH32_CONST if witness_version == 0 else _BECH32M_CONST
     if const != expected:
         raise ValueError(f"Bech32 checksum mismatch: {value!r}")
 

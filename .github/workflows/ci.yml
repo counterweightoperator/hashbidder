@@ -29,5 +29,11 @@ jobs:
       - name: Typecheck
         run: uv run mypy .
 
+      - name: Lockfile check
+        run: uv lock --check
+
+      - name: Import boundaries
+        run: uv run lint-imports
+
       - name: Test
         run: uv run pytest -v
