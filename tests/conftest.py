@@ -13,6 +13,7 @@ from hashbidder.client import (
     UserBid,
 )
 from hashbidder.config import BidConfig, SetBidsConfig
+from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
@@ -212,7 +213,7 @@ class FakeOceanSource:
         self._account_stats = account_stats
         self._error = error
 
-    def get_account_stats(self, address: str) -> AccountStats:
+    def get_account_stats(self, address: BtcAddress) -> AccountStats:
         """Return canned account stats or raise injected error."""
         if self._error:
             raise self._error
