@@ -70,12 +70,12 @@ def _parse_hashrate(text: str) -> Hashrate:
     value_str, unit_str = parts
     try:
         value = Decimal(value_str)
-    except InvalidOperation:
-        raise OceanError(200, f"invalid hashrate value: {value_str!r}")
+    except InvalidOperation as e:
+        raise OceanError(200, f"invalid hashrate value: {value_str!r}") from e
     try:
         hash_unit = HashUnit.from_rate_str(unit_str)
-    except ValueError:
-        raise OceanError(200, f"unrecognized hashrate unit: {unit_str!r}")
+    except ValueError as e:
+        raise OceanError(200, f"unrecognized hashrate unit: {unit_str!r}") from e
     return Hashrate(value=value, hash_unit=hash_unit, time_unit=TimeUnit.SECOND)
 
 
