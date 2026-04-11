@@ -64,7 +64,7 @@ class OceanSource(Protocol):
 
 def _parse_hashrate(text: str) -> Hashrate:
     """Parse a hashrate string like '1885.8 Th/s' into a Hashrate."""
-    parts = text.strip().split(" ")
+    parts = text.strip().split()
     if len(parts) != 2:
         raise OceanError(200, f"unexpected hashrate format: {text!r}")
     value_str, unit_str = parts
