@@ -33,6 +33,30 @@ class HashUnit(Enum):
     PH = 1_000_000_000_000_000
     EH = 1_000_000_000_000_000_000
 
+    @classmethod
+    def from_rate_str(cls, s: str) -> HashUnit:
+        """Parse a per-second rate suffix like 'Th/s' or 'GH/s' into a HashUnit.
+
+        Raises:
+            ValueError: If the string is not a recognized rate suffix.
+        """
+        match = _RATE_STR_MAP.get(s)
+        if match is None:
+            raise ValueError(f"unrecognized hashrate unit: {s!r}")
+        return match
+
+
+# Lookup for rate strings: canonical ("TH/s") and title-case ("Th/s") variants.
+_RATE_STR_MAP: dict[str, HashUnit] = {}
+for _u in HashUnit:
+    _canonical = f"{_u.name}/s"  # e.g. "TH/s", "GH/s", "H/s"
+    _title = _u.name.capitalize() + "/s"  # e.g. "Th/s", "Gh/s", "H/s"
+    _RATE_STR_MAP[_canonical] = _u
+    _RATE_STR_MAP[_title] = _u
+del _u, _canonical, _title
+
+_UNITS_ASC = sorted(HashUnit, key=lambda u: u.value)
+
 
 @dataclass(frozen=True)
 class Hashrate:
@@ -73,6 +97,19 @@ class Hashrate:
             hash_unit=hash_unit,
             time_unit=time_unit,
         )
+
+    def display_unit(self) -> Hashrate:
+        """Convert to the largest unit where 1 <= int(value) < 1000.
+
+        For zero hashrate, returns in the smallest unit (H).
+        """
+        best = self.to(_UNITS_ASC[0], self.time_unit)
+        for unit in _UNITS_ASC:
+            converted = self.to(unit, self.time_unit)
+            int_part = int(converted.value)
+            if 1 <= int_part < 1000:
+                best = converted
+        return best
 
     def __str__(self) -> str:
         unit = f"{self.hash_unit.name}/{self.time_unit.name.capitalize()}"

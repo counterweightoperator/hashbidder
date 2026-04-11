@@ -16,8 +16,10 @@ from hashbidder.client import (
 )
 from hashbidder.config import SetBidsConfig
 from hashbidder.domain.bitcoin import BLOCKS_PER_EPOCH
+from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.hashvalue import HashvalueComponents, compute_hashvalue
 from hashbidder.mempool_client import MempoolSource
+from hashbidder.ocean_client import AccountStats, OceanSource
 from hashbidder.reconcile import (
     MANAGEABLE_STATUSES,
     CancelAction,
@@ -54,6 +56,19 @@ def get_current_bids(client: HashpowerClient) -> tuple[UserBid, ...]:
         The user's currently active spot bids.
     """
     return client.get_current_bids()
+
+
+def get_ocean_account_stats(ocean: OceanSource, address: BtcAddress) -> AccountStats:
+    """Fetch Ocean account hashrate stats for the given address.
+
+    Args:
+        ocean: The Ocean data source to use.
+        address: The Bitcoin address to query.
+
+    Returns:
+        The account's hashrate stats across all time windows.
+    """
+    return ocean.get_account_stats(address)
 
 
 def get_hashvalue(mempool: MempoolSource) -> HashvalueComponents:

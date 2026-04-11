@@ -15,12 +15,14 @@ from dotenv import load_dotenv
 from hashbidder import use_cases
 from hashbidder.client import API_BASE, ApiError, BraiinsClient, HashpowerClient
 from hashbidder.config import load_config
+from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.formatting import (
     format_current_bids,
     format_hashvalue,
     format_hashvalue_verbose,
+    format_ocean_stats,
     format_outcome,
     format_plan,
     format_results_summary,
@@ -31,6 +33,7 @@ from hashbidder.mempool_client import (
     MempoolError,
     MempoolSource,
 )
+from hashbidder.ocean_client import OceanClient, OceanError, OceanSource
 
 
 @dataclass
@@ -39,6 +42,7 @@ class Clients:
 
     braiins: HashpowerClient | None = field(default=None)
     mempool: MempoolSource | None = field(default=None)
+    ocean: OceanSource | None = field(default=None)
 
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -72,6 +76,19 @@ def _mempool_errors() -> Iterator[None]:
         yield
     except MempoolError as e:
         raise click.ClickException(f"Mempool error: {e.message}") from e
+    except httpx.TimeoutException:
+        raise click.ClickException("Request timed out.")
+    except httpx.RequestError as e:
+        raise click.ClickException(f"Connection error: {e}") from e
+
+
+@contextlib.contextmanager
+def _ocean_errors() -> Iterator[None]:
+    """Translate Ocean/httpx exceptions into ClickExceptions."""
+    try:
+        yield
+    except OceanError as e:
+        raise click.ClickException(f"Ocean error: {e.message}") from e
     except httpx.TimeoutException:
         raise click.ClickException("Request timed out.")
     except httpx.RequestError as e:
@@ -124,6 +141,8 @@ def cli(ctx: click.Context, verbose: bool, log_file: Path | None) -> None:
         env_url = os.environ.get("MEMPOOL_URL")
         mempool_url = httpx.URL(env_url) if env_url else DEFAULT_MEMPOOL_URL
         app.mempool = MempoolClient(mempool_url, httpx.Client(timeout=10.0))
+    if app.ocean is None:
+        app.ocean = OceanClient(httpx.Client(timeout=10.0))
 
 
 @cli.command()
@@ -181,6 +200,28 @@ def hashvalue(ctx: click.Context) -> None:
         click.echo(format_hashvalue_verbose(components, mempool_url))
     else:
         click.echo(format_hashvalue(components))
+
+
+@cli.command("ocean-account-stats")
+@click.pass_context
+def ocean_account_stats(ctx: click.Context) -> None:
+    """Fetch Ocean hashrate stats for a Bitcoin mining address."""
+    app: Clients = ctx.obj
+    assert app.ocean is not None
+    address_str = os.environ.get("OCEAN_ADDRESS")
+    if not address_str:
+        click.echo("Error: OCEAN_ADDRESS environment variable is required.", err=True)
+        ctx.exit(1)
+        return
+    try:
+        address = BtcAddress(address_str)
+    except ValueError as e:
+        click.echo(f"Error: invalid OCEAN_ADDRESS: {e}", err=True)
+        ctx.exit(1)
+        return
+    with _ocean_errors():
+        stats = use_cases.get_ocean_account_stats(app.ocean, address)
+    click.echo(format_ocean_stats(stats, address))
 
 
 @cli.command("set-bids")

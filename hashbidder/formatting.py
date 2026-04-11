@@ -5,10 +5,12 @@ from __future__ import annotations
 from decimal import Decimal
 
 from hashbidder.client import UserBid
+from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.hashvalue import HashvalueComponents
+from hashbidder.ocean_client import AccountStats
 from hashbidder.reconcile import (
     CancelAction,
     CancelReason,
@@ -247,6 +249,26 @@ def format_current_bids(bids: tuple[UserBid, ...]) -> str:
             f"amount={bid.amount_sat} sat  "
             f"{bid.status.name}"
         )
+    return "\n".join(lines)
+
+
+def format_ocean_stats(stats: AccountStats, address: BtcAddress) -> str:
+    """Format Ocean account stats for display.
+
+    If all hashrate values are zero, returns an informative message
+    instead of the stats table.
+    """
+    all_zero = all(w.hashrate.value == 0 for w in stats.windows)
+    if all_zero:
+        return f"No stats found for {address} on Ocean."
+
+    lines = [f"Ocean stats for {address.truncated()}", ""]
+    for w in stats.windows:
+        display = w.hashrate.display_unit()
+        label = w.window.value
+        value_str = f"{display.value:.2f} {display.hash_unit.name}/s"
+        lines.append(f"  {label:>6s}    {value_str}")
+
     return "\n".join(lines)
 
 
