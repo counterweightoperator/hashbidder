@@ -5,6 +5,7 @@ from decimal import Decimal
 from urllib.parse import quote
 
 import httpx
+import pytest
 
 from hashbidder.client import (
     ApiError,
@@ -139,13 +140,11 @@ class TestApiErrorParsing:
 
         client = _make_client(httpx.MockTransport(handler))
 
-        try:
+        with pytest.raises(ApiError) as exc_info:
             client.cancel_bid(BidId("B1"))
-            raise AssertionError("Expected ApiError")  # noqa: TRY301
-        except ApiError as e:
-            assert e.status_code == 400
-            assert e.message == "grace period not elapsed"
-            assert not e.is_transient
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.message == "grace period not elapsed"
+        assert not exc_info.value.is_transient
 
     def test_json_body_message_extracted(self) -> None:
         """A JSON body with a 'message' field is extracted into ApiError."""
@@ -161,12 +160,10 @@ class TestApiErrorParsing:
 
         client = _make_client(httpx.MockTransport(handler))
 
-        try:
+        with pytest.raises(ApiError) as exc_info:
             client.cancel_bid(BidId("B1"))
-            raise AssertionError("Expected ApiError")  # noqa: TRY301
-        except ApiError as e:
-            assert e.status_code == 403
-            assert e.message == "You cannot consume this service"
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.message == "You cannot consume this service"
 
     def test_fallback_to_response_text(self) -> None:
         """Without grpc-message or JSON message, falls back to response body text."""
@@ -176,11 +173,9 @@ class TestApiErrorParsing:
 
         client = _make_client(httpx.MockTransport(handler))
 
-        try:
+        with pytest.raises(ApiError) as exc_info:
             client.cancel_bid(BidId("B1"))
-            raise AssertionError("Expected ApiError")  # noqa: TRY301
-        except ApiError as e:
-            assert e.message == "bad request body"
+        assert exc_info.value.message == "bad request body"
 
     def test_429_is_transient(self) -> None:
         """A 429 response is classified as transient."""
@@ -190,7 +185,7 @@ class TestApiErrorParsing:
 
         client = _make_client(httpx.MockTransport(handler))
 
-        try:
+        with pytest.raises(ApiError) as exc_info:
             client.create_bid(
                 upstream=UPSTREAM,
                 amount_sat=Sats(100),
@@ -201,10 +196,8 @@ class TestApiErrorParsing:
                 speed_limit=Hashrate(Decimal("1"), HashUnit.PH, TimeUnit.SECOND),
                 cl_order_id=ClOrderId("x"),
             )
-            raise AssertionError("Expected ApiError")  # noqa: TRY301
-        except ApiError as e:
-            assert e.status_code == 429
-            assert e.is_transient
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.is_transient
 
     def test_500_is_transient(self) -> None:
         """A 500 response is classified as transient."""
@@ -214,7 +207,7 @@ class TestApiErrorParsing:
 
         client = _make_client(httpx.MockTransport(handler))
 
-        try:
+        with pytest.raises(ApiError) as exc_info:
             client.edit_bid(
                 BidId("B1"),
                 new_price=HashratePrice(
@@ -223,7 +216,5 @@ class TestApiErrorParsing:
                 ),
                 new_speed_limit=Hashrate(Decimal("1"), HashUnit.PH, TimeUnit.SECOND),
             )
-            raise AssertionError("Expected ApiError")  # noqa: TRY301
-        except ApiError as e:
-            assert e.status_code == 500
-            assert e.is_transient
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.is_transient
