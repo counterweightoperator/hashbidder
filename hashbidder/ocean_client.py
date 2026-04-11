@@ -26,7 +26,7 @@ class OceanTimeWindow(Enum):
 
 
 _ROW_RE = re.compile(r'<tr\s+class="table-row">(.*?)</tr>', re.DOTALL)
-_CELL_RE = re.compile(r'<td\s+class="table-cell">(.*?)</td>', re.DOTALL)
+_CELL_RE = re.compile(r'<td\s+class="table-cell"\s*>(.*?)</td>', re.DOTALL)
 
 
 class OceanError(Exception):
