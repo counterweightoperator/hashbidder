@@ -1,4 +1,4 @@
-"""Hashbidder use cases."""
+"""Set-bids use case and execution engine."""
 
 import time
 import uuid
@@ -11,15 +11,9 @@ from hashbidder.client import (
     BidId,
     ClOrderId,
     HashpowerClient,
-    OrderBook,
     UserBid,
 )
 from hashbidder.config import SetBidsConfig
-from hashbidder.domain.bitcoin import BLOCKS_PER_EPOCH
-from hashbidder.domain.btc_address import BtcAddress
-from hashbidder.hashvalue import HashvalueComponents, compute_hashvalue
-from hashbidder.mempool_client import MempoolSource
-from hashbidder.ocean_client import AccountStats, OceanSource
 from hashbidder.reconcile import (
     MANAGEABLE_STATUSES,
     CancelAction,
@@ -32,60 +26,6 @@ from hashbidder.reconcile import (
 
 MAX_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 5.0
-
-
-def ping(client: HashpowerClient) -> OrderBook:
-    """Fetch the current order book.
-
-    Args:
-        client: The hashpower market client to use.
-
-    Returns:
-        The current spot order book snapshot.
-    """
-    return client.get_orderbook()
-
-
-def get_current_bids(client: HashpowerClient) -> tuple[UserBid, ...]:
-    """Fetch the authenticated user's active bids.
-
-    Args:
-        client: The hashpower market client to use.
-
-    Returns:
-        The user's currently active spot bids.
-    """
-    return client.get_current_bids()
-
-
-def get_ocean_account_stats(ocean: OceanSource, address: BtcAddress) -> AccountStats:
-    """Fetch Ocean account hashrate stats for the given address.
-
-    Args:
-        ocean: The Ocean data source to use.
-        address: The Bitcoin address to query.
-
-    Returns:
-        The account's hashrate stats across all time windows.
-    """
-    return ocean.get_account_stats(address)
-
-
-def get_hashvalue(mempool: MempoolSource) -> HashvalueComponents:
-    """Compute the current hashvalue from on-chain data.
-
-    Args:
-        mempool: The mempool data source to use.
-
-    Returns:
-        All intermediate components and the final hashvalue.
-    """
-    stats = mempool.get_chain_stats(BLOCKS_PER_EPOCH)
-    return compute_hashvalue(
-        difficulty=stats.difficulty,
-        tip_height=stats.tip_height,
-        total_fees=stats.total_fee,
-    )
 
 
 @dataclass(frozen=True)
