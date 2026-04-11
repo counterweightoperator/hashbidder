@@ -19,6 +19,7 @@ from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.mempool_client import ChainStats, MempoolError
+from hashbidder.ocean_client import AccountStats, OceanError
 
 UPSTREAM = Upstream(
     url=StratumUrl("stratum+tcp://pool.example.com:3333"), identity="worker1"
@@ -193,3 +194,26 @@ class FakeMempoolSource:
         if self._error:
             raise self._error
         return self._chain_stats
+
+
+class FakeOceanSource:
+    """In-memory implementation of OceanSource for testing.
+
+    Supports error injection: set `error` to an OceanError and all
+    calls will raise it.
+    """
+
+    def __init__(
+        self,
+        account_stats: AccountStats,
+        error: OceanError | None = None,
+    ) -> None:
+        """Initialize with canned data and optional error."""
+        self._account_stats = account_stats
+        self._error = error
+
+    def get_account_stats(self, address: str) -> AccountStats:
+        """Return canned account stats or raise injected error."""
+        if self._error:
+            raise self._error
+        return self._account_stats

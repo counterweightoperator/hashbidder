@@ -33,6 +33,27 @@ class HashUnit(Enum):
     PH = 1_000_000_000_000_000
     EH = 1_000_000_000_000_000_000
 
+    @classmethod
+    def from_rate_str(cls, s: str) -> HashUnit:
+        """Parse a per-second rate suffix like 'Th/s' or 'GH/s' into a HashUnit.
+
+        Raises:
+            ValueError: If the string is not a recognized rate suffix.
+        """
+        match = _RATE_STR_MAP.get(s)
+        if match is None:
+            raise ValueError(f"unrecognized hashrate unit: {s!r}")
+        return match
+
+
+# Lookup for rate strings: canonical ("TH/s") and title-case ("Th/s") variants.
+_RATE_STR_MAP: dict[str, HashUnit] = {}
+for _u in HashUnit:
+    _canonical = f"{_u.name}/s"  # e.g. "TH/s", "GH/s", "H/s"
+    _title = _u.name.capitalize() + "/s"  # e.g. "Th/s", "Gh/s", "H/s"
+    _RATE_STR_MAP[_canonical] = _u
+    _RATE_STR_MAP[_title] = _u
+
 
 @dataclass(frozen=True)
 class Hashrate:
