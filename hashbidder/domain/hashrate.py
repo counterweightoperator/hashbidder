@@ -53,6 +53,7 @@ for _u in HashUnit:
     _title = _u.name.capitalize() + "/s"  # e.g. "Th/s", "Gh/s", "H/s"
     _RATE_STR_MAP[_canonical] = _u
     _RATE_STR_MAP[_title] = _u
+del _u, _canonical, _title
 
 _UNITS_ASC = sorted(HashUnit, key=lambda u: u.value)
 
