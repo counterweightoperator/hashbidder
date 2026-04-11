@@ -54,6 +54,8 @@ for _u in HashUnit:
     _RATE_STR_MAP[_canonical] = _u
     _RATE_STR_MAP[_title] = _u
 
+_UNITS_ASC = sorted(HashUnit, key=lambda u: u.value)
+
 
 @dataclass(frozen=True)
 class Hashrate:
@@ -100,9 +102,8 @@ class Hashrate:
 
         For zero hashrate, returns in the smallest unit (H).
         """
-        units = sorted(HashUnit, key=lambda u: u.value)
-        best = self.to(units[0], self.time_unit)
-        for unit in units:
+        best = self.to(_UNITS_ASC[0], self.time_unit)
+        for unit in _UNITS_ASC:
             converted = self.to(unit, self.time_unit)
             int_part = int(converted.value)
             if 1 <= int_part < 1000:
