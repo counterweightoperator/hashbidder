@@ -1,17 +1,19 @@
-"""Target-hashrate set-bids use case (no cooldown handling)."""
+"""Target-hashrate set-bids use case."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from hashbidder.bid_runner import SetBidsResult, reconcile
 from hashbidder.client import HashpowerClient
-from hashbidder.config import BidConfig, SetBidsConfig, TargetHashrateConfig
+from hashbidder.config import SetBidsConfig, TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice
 from hashbidder.ocean_client import OceanSource, OceanTimeWindow
 from hashbidder.target_hashrate import (
+    check_cooldowns,
     compute_needed_hashrate,
-    distribute_bids,
     find_market_price,
+    plan_with_cooldowns,
 )
 
 
@@ -47,24 +49,37 @@ def set_bids_target(
     address: BtcAddress,
     config: TargetHashrateConfig,
     dry_run: bool,
+    now: datetime | None = None,
 ) -> SetBidsTargetResult:
     """Plan reconciliation to drive the 24h Ocean hashrate toward target.
 
     Steps:
         1. Read Ocean's 24h hashrate.
         2. Find the cheapest served bid in the order book and undercut it by 1 sat.
-        3. Compute needed hashrate and split it across up to `max_bids_count` bids.
-        4. Build a SetBidsConfig and hand it to the reconciliation engine.
+        3. Compute needed hashrate.
+        4. Check per-bid cooldowns from market settings against `now`.
+        5. Build a cooldown-aware SetBidsConfig and hand it to reconciliation.
 
-    Cooldown handling is added in step 5 of the plan; this use case ignores it.
+    `now` defaults to the current UTC time; tests inject a fixed value.
     """
+    if now is None:
+        now = datetime.now(UTC)
+
     ocean_24h = _ocean_24h(ocean, address)
     orderbook = client.get_orderbook()
     price = find_market_price(orderbook)
     needed = compute_needed_hashrate(config.target_hashrate, ocean_24h)
-    speeds = distribute_bids(needed, config.max_bids_count)
 
-    bids = tuple(BidConfig(price=price, speed_limit=speed) for speed in speeds)
+    current_bids = client.get_current_bids()
+    settings = client.get_market_settings()
+    annotated = check_cooldowns(current_bids, settings, now)
+    bids = plan_with_cooldowns(
+        desired_price=price,
+        needed=needed,
+        max_bids_count=config.max_bids_count,
+        bids=annotated,
+    )
+
     computed = SetBidsConfig(
         default_amount=config.default_amount,
         upstream=config.upstream,
