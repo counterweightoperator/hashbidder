@@ -1,7 +1,9 @@
 """Tests for dry-run output formatting."""
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+from hashbidder.bid_runner import SetBidsResult
 from hashbidder.client import BidStatus
 from hashbidder.domain.bid_planning import (
     CancelAction,
@@ -14,7 +16,15 @@ from hashbidder.domain.bid_planning import (
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.formatting import format_plan
+from hashbidder.formatting import (
+    format_plan,
+    format_set_bids_target_result_verbose,
+)
+from hashbidder.target_hashrate import BidWithCooldown, CooldownInfo
+from hashbidder.use_cases.set_bids_target import (
+    SetBidsTargetResult,
+    TargetHashrateInputs,
+)
 from tests.conftest import PH_DAY, UPSTREAM, make_bid_config, make_user_bid
 
 
@@ -258,3 +268,70 @@ class TestFormatPlan:
 
         assert "CANCEL B1:" in output
         assert "No active bids." in output
+
+
+class TestFormatTargetHashrateVerbose:
+    """Tests for format_set_bids_target_result_verbose."""
+
+    def _result(self, annotated: tuple[BidWithCooldown, ...]) -> SetBidsTargetResult:
+        def ph_s(v: str) -> Hashrate:
+            return Hashrate(Decimal(v), HashUnit.PH, TimeUnit.SECOND)
+
+        inputs = TargetHashrateInputs(
+            ocean_24h=ph_s("5"),
+            target=ph_s("10"),
+            needed=ph_s("15"),
+            price=HashratePrice(sats=Sats(801), per=PH_DAY),
+            max_bids_count=3,
+            annotated_bids=annotated,
+        )
+        plan = ReconciliationPlan(edits=(), creates=(), cancels=(), unchanged=())
+        return SetBidsTargetResult(
+            inputs=inputs,
+            set_bids_result=SetBidsResult(plan=plan, skipped_bids=(), execution=None),
+        )
+
+    def test_no_existing_bids(self) -> None:
+        """No existing bids → cooldown section says so."""
+        output = format_set_bids_target_result_verbose(self._result(()))
+        assert "=== Reasoning ===" in output
+        assert "Price scan:   lowest served bid 800 sat/PH/Day" in output
+        assert "→ undercut by 1 sat → 801 sat/PH/Day" in output
+        assert "Needed math:  2 * 10.0 (target) - 5.0 (ocean 24h) = 15.0 PH/s" in (
+            output
+        )
+        assert "Slot budget:  up to 3 bids" in output
+        assert "=== Cooldown Status ===" in output
+        assert "(no existing bids)" in output
+
+    def test_mixed_cooldowns(self) -> None:
+        """Each cooldown combination renders a distinct status label."""
+        now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
+        b_free = make_user_bid("B1", 700, "1.0", last_updated=now - timedelta(days=1))
+        b_price = make_user_bid("B2", 800, "2.0", last_updated=now)
+        b_speed = make_user_bid("B3", 900, "3.0", last_updated=now)
+        b_both = make_user_bid("B4", 950, "4.0", last_updated=now)
+        annotated = (
+            BidWithCooldown(
+                bid=b_free,
+                cooldown=CooldownInfo(price_cooldown=False, speed_cooldown=False),
+            ),
+            BidWithCooldown(
+                bid=b_price,
+                cooldown=CooldownInfo(price_cooldown=True, speed_cooldown=False),
+            ),
+            BidWithCooldown(
+                bid=b_speed,
+                cooldown=CooldownInfo(price_cooldown=False, speed_cooldown=True),
+            ),
+            BidWithCooldown(
+                bid=b_both,
+                cooldown=CooldownInfo(price_cooldown=True, speed_cooldown=True),
+            ),
+        )
+        output = format_set_bids_target_result_verbose(self._result(annotated))
+        assert "B1  price=700 sat/PH/Day  limit=1 PH/Second  → free" in output
+        assert "B2  price=800 sat/PH/Day  limit=2 PH/Second  → price locked" in output
+        assert "B3" in output
+        assert "→ speed locked (price free)" in output
+        assert "B4  price=950 sat/PH/Day  limit=4 PH/Second  → price+speed" in output

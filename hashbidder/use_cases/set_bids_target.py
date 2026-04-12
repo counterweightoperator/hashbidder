@@ -10,6 +10,7 @@ from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice
 from hashbidder.ocean_client import OceanSource, OceanTimeWindow
 from hashbidder.target_hashrate import (
+    BidWithCooldown,
     check_cooldowns,
     compute_needed_hashrate,
     find_market_price,
@@ -25,6 +26,8 @@ class TargetHashrateInputs:
     target: Hashrate
     needed: Hashrate
     price: HashratePrice
+    max_bids_count: int
+    annotated_bids: tuple[BidWithCooldown, ...]
 
 
 @dataclass(frozen=True)
@@ -91,6 +94,8 @@ def set_bids_target(
         target=config.target_hashrate,
         needed=needed,
         price=price,
+        max_bids_count=config.max_bids_count,
+        annotated_bids=annotated,
     )
     return SetBidsTargetResult(
         inputs=inputs,
