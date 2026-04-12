@@ -185,6 +185,7 @@ class TestGetMarketSettings:
                 json={
                     "min_bid_price_decrease_period_s": 600,
                     "min_bid_speed_limit_decrease_period_s": 300,
+                    "tick_size_sat": 1000,
                 },
             )
 
@@ -193,6 +194,7 @@ class TestGetMarketSettings:
 
         assert settings.min_bid_price_decrease_period == timedelta(seconds=600)
         assert settings.min_bid_speed_limit_decrease_period == timedelta(seconds=300)
+        assert int(settings.price_tick.sats) == 1000
         assert captured[0].method == "GET"
         assert captured[0].url.path.endswith("/spot/settings")
         assert captured[0].headers["apikey"] == API_KEY

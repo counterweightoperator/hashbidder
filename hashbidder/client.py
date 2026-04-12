@@ -11,6 +11,7 @@ from urllib.parse import unquote
 import httpx
 
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
@@ -90,6 +91,7 @@ class MarketSettings:
 
     min_bid_price_decrease_period: timedelta
     min_bid_speed_limit_decrease_period: timedelta
+    price_tick: PriceTick
 
 
 @dataclass(frozen=True)
@@ -386,6 +388,7 @@ class BraiinsClient:
             min_bid_speed_limit_decrease_period=timedelta(
                 seconds=int(data["min_bid_speed_limit_decrease_period_s"])
             ),
+            price_tick=PriceTick(sats=Sats(int(data["tick_size_sat"]))),
         )
 
     def cancel_bid(self, order_id: BidId) -> None:

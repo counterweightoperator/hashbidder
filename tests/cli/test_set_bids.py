@@ -316,7 +316,7 @@ class TestTargetHashrateMode:
         assert "=== Target Hashrate Inputs ===" in result.output
         assert "Ocean 24h:" in result.output
         assert "Needed:" in result.output
-        assert "800 sat/PH/Day" in result.output
+        assert "801 sat/PH/Day" in result.output
         assert result.output.count("CREATE:") == 3
         # Dry run did not execute anything.
         assert client.calls == []

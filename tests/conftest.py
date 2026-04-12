@@ -17,6 +17,7 @@ from hashbidder.client import (
 from hashbidder.config import BidConfig, SetBidsConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
@@ -39,9 +40,11 @@ EH_DAY = Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY)
 DEFAULT_LAST_UPDATED = datetime(1970, 1, 1, tzinfo=UTC)
 
 # Canned market settings for FakeClient.
+DEFAULT_PRICE_TICK = PriceTick(sats=Sats(1000))
 DEFAULT_MARKET_SETTINGS = MarketSettings(
     min_bid_price_decrease_period=timedelta(seconds=600),
     min_bid_speed_limit_decrease_period=timedelta(seconds=600),
+    price_tick=DEFAULT_PRICE_TICK,
 )
 
 

@@ -7,7 +7,7 @@ from decimal import Decimal
 from hashbidder.client import MarketSettings, OrderBook, UserBid
 from hashbidder.domain.bid_config import BidConfig
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
-from hashbidder.domain.sats import Sats
+from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.time_unit import TimeUnit
 
 
@@ -145,8 +145,11 @@ def plan_with_cooldowns(
     return locked_entries + tuple(free_entries)
 
 
-def find_market_price(orderbook: OrderBook) -> HashratePrice:
-    """Lowest-priced bid currently being served, plus one sat.
+def find_market_price(orderbook: OrderBook, tick: PriceTick) -> HashratePrice:
+    """Lowest served bid, undercut (from above) by one price tick.
+
+    The cheapest served price is aligned down to the tick grid first to
+    guarantee the result lands on a valid tick.
 
     Raises:
         ValueError: If no bid in the order book has hr_matched_ph > 0.
@@ -155,7 +158,4 @@ def find_market_price(orderbook: OrderBook) -> HashratePrice:
     if not served:
         raise ValueError("Order book has no served bids; cannot pick a price")
     cheapest = min(served, key=lambda b: b.price.sats)
-    return HashratePrice(
-        sats=Sats(cheapest.price.sats + 1),
-        per=cheapest.price.per,
-    )
+    return tick.add_one(tick.align_down(cheapest.price))

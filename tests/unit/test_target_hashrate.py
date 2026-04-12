@@ -7,6 +7,7 @@ import pytest
 
 from hashbidder.client import BidItem, MarketSettings, OrderBook
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.target_hashrate import (
@@ -168,11 +169,14 @@ class TestDistributeBids:
             )
 
 
+_TICK = PriceTick(sats=Sats(100))
+
+
 class TestFindMarketPrice:
     """Tests for find_market_price."""
 
-    def test_picks_lowest_served_plus_one(self) -> None:
-        """Among served bids, picks the lowest price and adds 1 sat."""
+    def test_picks_lowest_served_plus_one_tick(self) -> None:
+        """Among served bids, picks the lowest aligned price and adds one tick."""
         orderbook = OrderBook(
             bids=(
                 _bid_item(price_sat=1000, hr_matched="0"),
@@ -183,18 +187,29 @@ class TestFindMarketPrice:
             ),
             asks=(),
         )
-        price = find_market_price(orderbook)
-        assert price.sats == Sats(701)
+        price = find_market_price(orderbook, _TICK)
+        assert price.sats == Sats(800)
         assert price.per == EH_DAY
 
     def test_single_served_bid(self) -> None:
-        """A single served bid → that price + 1."""
+        """A single served bid → that price aligned down, plus one tick."""
         orderbook = OrderBook(
             bids=(_bid_item(price_sat=1234, hr_matched="0.5"),),
             asks=(),
         )
-        price = find_market_price(orderbook)
-        assert price.sats == Sats(1235)
+        price = find_market_price(orderbook, _TICK)
+        # 1234 → align_down to 1200 → +100 tick = 1300
+        assert price.sats == Sats(1300)
+
+    def test_result_is_tick_aligned(self) -> None:
+        """Result is always aligned to the supplied tick."""
+        orderbook = OrderBook(
+            bids=(_bid_item(price_sat=12345, hr_matched="1"),),
+            asks=(),
+        )
+        tick = PriceTick(sats=Sats(1000))
+        price = find_market_price(orderbook, tick)
+        assert int(price.sats) % 1000 == 0
 
     def test_no_served_bids_raises(self) -> None:
         """Order book with no served bids raises ValueError."""
@@ -206,18 +221,19 @@ class TestFindMarketPrice:
             asks=(),
         )
         with pytest.raises(ValueError, match="no served bids"):
-            find_market_price(orderbook)
+            find_market_price(orderbook, _TICK)
 
     def test_empty_orderbook_raises(self) -> None:
         """Empty bids tuple raises ValueError."""
         with pytest.raises(ValueError, match="no served bids"):
-            find_market_price(OrderBook(bids=(), asks=()))
+            find_market_price(OrderBook(bids=(), asks=()), _TICK)
 
 
 _NOW = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
 _SETTINGS = MarketSettings(
     min_bid_price_decrease_period=timedelta(seconds=600),
     min_bid_speed_limit_decrease_period=timedelta(seconds=600),
+    price_tick=_TICK,
 )
 DESIRED_PRICE = HashratePrice(sats=Sats(500), per=PH_DAY)
 
@@ -254,6 +270,7 @@ class TestCheckCooldowns:
         settings = MarketSettings(
             min_bid_price_decrease_period=timedelta(seconds=600),
             min_bid_speed_limit_decrease_period=timedelta(seconds=60),
+            price_tick=_TICK,
         )
         bid = make_user_bid(
             "B1", 500, "5.0", last_updated=_NOW - timedelta(seconds=120)

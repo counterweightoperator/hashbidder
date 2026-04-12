@@ -9,6 +9,7 @@ from hashbidder.client import BidItem, MarketSettings, OrderBook
 from hashbidder.config import TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.ocean_client import AccountStats, HashrateWindow, OceanTimeWindow
@@ -72,12 +73,12 @@ class TestSetBidsTarget:
         assert inputs.ocean_24h == _ph_s("5")
         assert inputs.target == _ph_s("10")
         assert inputs.needed == _ph_s("15")
-        assert inputs.price.sats == Sats(800_001)
+        assert inputs.price.sats == Sats(801_000)
 
         plan = result.set_bids_result.plan
         assert len(plan.creates) == 3
         for create in plan.creates:
-            assert create.config.price.sats == Sats(800_001)
+            assert create.config.price.sats == Sats(801_000)
             assert create.config.speed_limit == _ph_s("5")
 
     def test_at_target_keeps_running(self) -> None:
@@ -125,6 +126,7 @@ class TestSetBidsTarget:
             market_settings=MarketSettings(
                 min_bid_price_decrease_period=timedelta(seconds=600),
                 min_bid_speed_limit_decrease_period=timedelta(seconds=600),
+                price_tick=PriceTick(sats=Sats(1000)),
             ),
         )
         ocean = FakeOceanSource(account_stats=_account_stats("5"))
@@ -159,6 +161,7 @@ class TestSetBidsTarget:
             market_settings=MarketSettings(
                 min_bid_price_decrease_period=timedelta(seconds=600),
                 min_bid_speed_limit_decrease_period=timedelta(seconds=10),
+                price_tick=PriceTick(sats=Sats(1000)),
             ),
         )
         ocean = FakeOceanSource(account_stats=_account_stats("5"))
@@ -179,7 +182,7 @@ class TestSetBidsTarget:
         assert len(plan.creates) == 2
         for create in plan.creates:
             assert create.config.speed_limit == _ph_s("5")
-            assert create.config.price.sats == Sats(500_001)
+            assert create.config.price.sats == Sats(501_000)
         assert plan.cancels == ()
 
     def test_both_cooldowns_lock_price_and_speed(self) -> None:
@@ -194,6 +197,7 @@ class TestSetBidsTarget:
             market_settings=MarketSettings(
                 min_bid_price_decrease_period=timedelta(seconds=600),
                 min_bid_speed_limit_decrease_period=timedelta(seconds=600),
+                price_tick=PriceTick(sats=Sats(1000)),
             ),
         )
         ocean = FakeOceanSource(account_stats=_account_stats("5"))
@@ -209,7 +213,7 @@ class TestSetBidsTarget:
         assert plan.edits == ()
         assert len(plan.creates) == 2
         for create in plan.creates:
-            assert create.config.price.sats == Sats(500_001)
+            assert create.config.price.sats == Sats(501_000)
         free_total = sum((c.config.speed_limit.value for c in plan.creates), Decimal(0))
         # distribute_bids quantizes to 0.01 PH/s (5.5 + 5.5 = 11).
         assert abs(free_total - Decimal("11")) <= Decimal("0.02")
@@ -229,6 +233,7 @@ class TestSetBidsTarget:
             market_settings=MarketSettings(
                 min_bid_price_decrease_period=timedelta(seconds=600),
                 min_bid_speed_limit_decrease_period=timedelta(seconds=600),
+                price_tick=PriceTick(sats=Sats(1000)),
             ),
         )
         ocean = FakeOceanSource(account_stats=_account_stats("5"))

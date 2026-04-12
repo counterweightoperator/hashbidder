@@ -69,12 +69,12 @@ def set_bids_target(
         now = datetime.now(UTC)
 
     ocean_24h = _ocean_24h(ocean, address)
+    settings = client.get_market_settings()
     orderbook = client.get_orderbook()
-    price = find_market_price(orderbook)
+    price = find_market_price(orderbook, settings.price_tick)
     needed = compute_needed_hashrate(config.target_hashrate, ocean_24h)
 
     current_bids = client.get_current_bids()
-    settings = client.get_market_settings()
     annotated = check_cooldowns(current_bids, settings, now)
     bids = plan_with_cooldowns(
         desired_price=price,
@@ -82,6 +82,8 @@ def set_bids_target(
         max_bids_count=config.max_bids_count,
         bids=annotated,
     )
+    for entry in bids:
+        settings.price_tick.assert_aligned(entry.price)
 
     computed = SetBidsConfig(
         default_amount=config.default_amount,
