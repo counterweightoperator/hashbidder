@@ -45,7 +45,7 @@ class TargetHashrateConfig:
     default_amount: Sats
     upstream: Upstream
     target_hashrate: Hashrate
-    max_bids: int
+    max_bids_count: int
 
 
 def load_config(path: Path) -> SetBidsConfig | TargetHashrateConfig:
@@ -163,17 +163,17 @@ def _parse_target_hashrate(
     if target_raw <= 0:
         raise ValueError("target_hashrate_ph_s must be positive")
 
-    if "max_bids" not in data:
-        raise ValueError("Missing required field: max_bids")
-    max_bids = data["max_bids"]
-    if not isinstance(max_bids, int) or isinstance(max_bids, bool):
-        raise ValueError("max_bids must be an integer")
-    if max_bids < 1:
-        raise ValueError("max_bids must be >= 1")
+    if "max_bids_count" not in data:
+        raise ValueError("Missing required field: max_bids_count")
+    max_bids_count = data["max_bids_count"]
+    if not isinstance(max_bids_count, int) or isinstance(max_bids_count, bool):
+        raise ValueError("max_bids_count must be an integer")
+    if max_bids_count < 1:
+        raise ValueError("max_bids_count must be >= 1")
 
     return TargetHashrateConfig(
         default_amount=default_amount,
         upstream=upstream,
         target_hashrate=Hashrate(target_raw, HashUnit.PH, TimeUnit.SECOND),
-        max_bids=max_bids,
+        max_bids_count=max_bids_count,
     )

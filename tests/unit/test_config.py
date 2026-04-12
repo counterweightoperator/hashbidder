@@ -375,7 +375,7 @@ speed_limit_ph_s = 5.0
 mode = "target-hashrate"
 default_amount_sat = 100000
 target_hashrate_ph_s = 10.0
-max_bids = 3
+max_bids_count = 3
 
 [upstream]
 url = "stratum+tcp://pool.example.com:3333"
@@ -385,7 +385,7 @@ identity = "worker1"
         config = load_config(path)
         assert isinstance(config, TargetHashrateConfig)
         assert config.default_amount == Sats(100000)
-        assert config.max_bids == 3
+        assert config.max_bids_count == 3
         assert config.target_hashrate == Hashrate(
             Decimal("10.0"), HashUnit.PH, TimeUnit.SECOND
         )
@@ -399,7 +399,7 @@ identity = "worker1"
 mode = "target-hashrate"
 default_amount_sat = 100000
 target_hashrate_ph_s = 10.0
-max_bids = 3
+max_bids_count = 3
 
 [upstream]
 url = "stratum+tcp://pool.example.com:3333"
@@ -420,7 +420,7 @@ speed_limit_ph_s = 5.0
             """\
 mode = "target-hashrate"
 default_amount_sat = 100000
-max_bids = 3
+max_bids_count = 3
 
 [upstream]
 url = "stratum+tcp://pool.example.com:3333"
@@ -430,8 +430,8 @@ identity = "worker1"
         with pytest.raises(ValueError, match="target_hashrate_ph_s"):
             load_config(path)
 
-    def test_target_hashrate_missing_max_bids(self, tmp_path: Path) -> None:
-        """Missing max_bids raises ValueError."""
+    def test_target_hashrate_missing_max_bids_count(self, tmp_path: Path) -> None:
+        """Missing max_bids_count raises ValueError."""
         path = _write_toml(
             tmp_path,
             """\
@@ -444,7 +444,7 @@ url = "stratum+tcp://pool.example.com:3333"
 identity = "worker1"
 """,
         )
-        with pytest.raises(ValueError, match="max_bids"):
+        with pytest.raises(ValueError, match="max_bids_count"):
             load_config(path)
 
     def test_target_hashrate_non_positive_target(self, tmp_path: Path) -> None:
@@ -455,7 +455,7 @@ identity = "worker1"
 mode = "target-hashrate"
 default_amount_sat = 100000
 target_hashrate_ph_s = 0
-max_bids = 3
+max_bids_count = 3
 
 [upstream]
 url = "stratum+tcp://pool.example.com:3333"
@@ -465,22 +465,22 @@ identity = "worker1"
         with pytest.raises(ValueError, match="target_hashrate_ph_s must be positive"):
             load_config(path)
 
-    def test_target_hashrate_max_bids_below_one(self, tmp_path: Path) -> None:
-        """max_bids < 1 raises ValueError."""
+    def test_target_hashrate_max_bids_count_below_one(self, tmp_path: Path) -> None:
+        """max_bids_count < 1 raises ValueError."""
         path = _write_toml(
             tmp_path,
             """\
 mode = "target-hashrate"
 default_amount_sat = 100000
 target_hashrate_ph_s = 10.0
-max_bids = 0
+max_bids_count = 0
 
 [upstream]
 url = "stratum+tcp://pool.example.com:3333"
 identity = "worker1"
 """,
         )
-        with pytest.raises(ValueError, match="max_bids must be >= 1"):
+        with pytest.raises(ValueError, match="max_bids_count must be >= 1"):
             load_config(path)
 
     def test_invalid_mode(self, tmp_path: Path) -> None:
