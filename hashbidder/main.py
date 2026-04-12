@@ -184,12 +184,16 @@ def bids(app: Clients) -> None:
 
     for bid in current_bids:
         price_per_phs = bid.price.to(HashUnit.PH, TimeUnit.DAY)
+        remaining = (
+            bid.amount_remaining_sat if bid.amount_remaining_sat is not None else "-"
+        )
+        progress = bid.progress if bid.progress is not None else "-"
         click.echo(
             f"{bid.id}  {bid.status.name:>14}  "
             f"price={price_per_phs}  "
             f"limit={bid.speed_limit_ph}  "
-            f"remaining={bid.amount_remaining_sat} sat  "
-            f"progress={bid.progress}"
+            f"remaining={remaining} sat  "
+            f"progress={progress}"
         )
 
 

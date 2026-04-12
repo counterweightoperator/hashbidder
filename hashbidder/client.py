@@ -141,6 +141,37 @@ class HashpowerClient(Protocol):
         ...
 
 
+def _parse_user_bid(item: dict[str, Any]) -> UserBid:
+    bid = item["bid"]
+    state = item.get("state_estimate")
+    upstream = bid.get("dest_upstream")
+    return UserBid(
+        id=BidId(bid["id"]),
+        price=HashratePrice(
+            sats=Sats(int(bid["price_sat"])),
+            per=Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY),
+        ),
+        speed_limit_ph=Hashrate(
+            Decimal(bid["speed_limit_ph"]), HashUnit.PH, TimeUnit.SECOND
+        ),
+        amount_sat=Sats(int(bid["amount_sat"])),
+        status=BidStatus(bid["status"]),
+        progress=Progress.from_percentage(Decimal(state["progress_pct"]))
+        if state is not None
+        else None,
+        amount_remaining_sat=Sats(int(state["amount_remaining_sat"]))
+        if state is not None
+        else None,
+        last_updated=datetime.fromisoformat(bid["last_updated"]),
+        upstream=Upstream(
+            url=StratumUrl(upstream["url"]),
+            identity=upstream["identity"],
+        )
+        if upstream is not None
+        else None,
+    )
+
+
 class BraiinsClient:
     """HTTP client for the Braiins Hashpower API."""
 
@@ -280,34 +311,8 @@ class BraiinsClient:
         data: dict[str, list[dict[str, Any]]] = json.loads(
             response.text, parse_float=Decimal
         )
-        return tuple(
-            UserBid(
-                id=BidId(item["bid"]["id"]),
-                price=HashratePrice(
-                    sats=Sats(int(item["bid"]["price_sat"])),
-                    per=Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY),
-                ),
-                speed_limit_ph=Hashrate(
-                    Decimal(item["bid"]["speed_limit_ph"]), HashUnit.PH, TimeUnit.SECOND
-                ),
-                amount_sat=Sats(int(item["bid"]["amount_sat"])),
-                status=BidStatus(item["bid"]["status"]),
-                progress=Progress.from_percentage(
-                    Decimal(item["state_estimate"]["progress_pct"])
-                ),
-                amount_remaining_sat=Sats(
-                    int(item["state_estimate"]["amount_remaining_sat"])
-                ),
-                last_updated=datetime.fromisoformat(item["bid"]["last_updated"]),
-                upstream=Upstream(
-                    url=StratumUrl(item["bid"]["dest_upstream"]["url"]),
-                    identity=item["bid"]["dest_upstream"]["identity"],
-                )
-                if "dest_upstream" in item["bid"]
-                else None,
-            )
-            for item in data["items"]
-        )
+
+        return tuple(_parse_user_bid(item) for item in data["items"])
 
     def create_bid(
         self,

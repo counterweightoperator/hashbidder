@@ -107,7 +107,14 @@ def plan_bid_changes(
         A plan describing edits, creates, cancels, and unchanged bids.
     """
     manageable_bids = [b for b in current_bids if b.status in MANAGEABLE_STATUSES]
-    manageable_bids.sort(key=lambda b: b.amount_remaining_sat, reverse=True)
+    manageable_bids.sort(
+        key=lambda b: (
+            b.amount_remaining_sat
+            if b.amount_remaining_sat is not None
+            else b.amount_sat
+        ),
+        reverse=True,
+    )
 
     unmatched_configs = list(range(len(config.bids)))
 

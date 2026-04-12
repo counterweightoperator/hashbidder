@@ -35,7 +35,7 @@ class UserBid:
     speed_limit_ph: Hashrate
     amount_sat: Sats
     status: BidStatus
-    progress: Progress
-    amount_remaining_sat: Sats
+    progress: Progress | None
+    amount_remaining_sat: Sats | None
     last_updated: datetime
     upstream: Upstream | None

@@ -170,6 +170,21 @@ class TestGetCurrentBids:
         assert bids[0].id == BidId("B42")
         assert bids[0].last_updated == datetime(2026, 4, 12, 10, 30, tzinfo=UTC)
 
+    def test_handles_missing_state_estimate(self) -> None:
+        """Freshly created bids may lack state_estimate; default to 0% progress."""
+        body = self._bid_response_body()
+        del body["items"][0]["state_estimate"]  # type: ignore[index]
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=body)
+
+        client = _make_client(httpx.MockTransport(handler))
+        bids = client.get_current_bids()
+
+        assert len(bids) == 1
+        assert bids[0].amount_remaining_sat is None
+        assert bids[0].progress is None
+
 
 class TestGetMarketSettings:
     """Tests for BraiinsClient.get_market_settings parsing."""
