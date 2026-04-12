@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 from hashbidder import use_cases
 from hashbidder.client import API_BASE, ApiError, BraiinsClient, HashpowerClient
-from hashbidder.config import load_config
+from hashbidder.config import SetBidsConfig, TargetHashrateConfig, load_config
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
@@ -240,6 +240,10 @@ def set_bids(app: Clients, bid_config: Path, dry_run: bool) -> None:
     assert app.braiins is not None
     with _api_errors():
         config = load_config(bid_config)
+
+    if isinstance(config, TargetHashrateConfig):
+        raise click.ClickException("target-hashrate mode is not yet implemented")
+    assert isinstance(config, SetBidsConfig)
 
     with _api_errors():
         result = use_cases.set_bids(app.braiins, config)
