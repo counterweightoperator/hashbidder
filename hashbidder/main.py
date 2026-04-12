@@ -32,7 +32,12 @@ from hashbidder.mempool_client import (
     MempoolError,
     MempoolSource,
 )
-from hashbidder.ocean_client import OceanClient, OceanError, OceanSource
+from hashbidder.ocean_client import (
+    DEFAULT_OCEAN_URL,
+    OceanClient,
+    OceanError,
+    OceanSource,
+)
 
 
 @dataclass
@@ -42,6 +47,12 @@ class Clients:
     braiins: HashpowerClient | None = field(default=None)
     mempool: MempoolSource | None = field(default=None)
     ocean: OceanSource | None = field(default=None)
+
+
+def _resolve_mempool_url() -> httpx.URL:
+    """Resolve the mempool URL from env, falling back to the default."""
+    env_url = os.environ.get("MEMPOOL_URL")
+    return httpx.URL(env_url) if env_url else DEFAULT_MEMPOOL_URL
 
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -137,11 +148,9 @@ def cli(ctx: click.Context, verbose: bool, log_file: Path | None) -> None:
         http_client = httpx.Client(timeout=10.0)
         app.braiins = BraiinsClient(API_BASE, api_key=api_key, http_client=http_client)
     if app.mempool is None:
-        env_url = os.environ.get("MEMPOOL_URL")
-        mempool_url = httpx.URL(env_url) if env_url else DEFAULT_MEMPOOL_URL
-        app.mempool = MempoolClient(mempool_url, httpx.Client(timeout=10.0))
+        app.mempool = MempoolClient(_resolve_mempool_url(), httpx.Client(timeout=10.0))
     if app.ocean is None:
-        app.ocean = OceanClient(httpx.Client(timeout=10.0))
+        app.ocean = OceanClient(DEFAULT_OCEAN_URL, httpx.Client(timeout=10.0))
 
 
 @cli.command()
@@ -194,9 +203,8 @@ def hashvalue(ctx: click.Context) -> None:
         components = use_cases.get_hashvalue(app.mempool)
 
     verbose = ctx.find_root().params["verbose"]
-    mempool_url = os.environ.get("MEMPOOL_URL") or str(DEFAULT_MEMPOOL_URL)
     if verbose:
-        click.echo(format_hashvalue_verbose(components, mempool_url))
+        click.echo(format_hashvalue_verbose(components, _resolve_mempool_url()))
     else:
         click.echo(format_hashvalue(components))
 
