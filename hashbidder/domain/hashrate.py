@@ -6,6 +6,7 @@ import decimal
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+from fractions import Fraction
 
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
@@ -164,7 +165,9 @@ class HashratePrice:
         """Convert to a price per different hashrate unit.
 
         Scales the sats proportionally so the price per hash-per-second
-        remains equivalent.
+        remains equivalent. Computed exactly via Fraction and rounded to
+        the nearest sat (banker's rounding) at the end, so converting an
+        integer-representable price between units is lossless.
 
         Args:
             hash_unit: Target hash unit.
@@ -173,11 +176,18 @@ class HashratePrice:
         Returns:
             An equivalent HashratePrice in the new units.
         """
-        old_hps = self.per._as_hashes_per_second()
         new_per = Hashrate(Decimal(1), hash_unit, time_unit)
-        new_hps = new_per._as_hashes_per_second()
-        scaled_sats = Decimal(self.sats) * new_hps / old_hps
-        return HashratePrice(sats=Sats(int(scaled_sats)), per=new_per)
+        # Multiplier = new_hps / old_hps
+        #            = (1 * dst_hash / dst_time) / (src_value * src_hash / src_time)
+        #            = (dst_hash * src_time) / (dst_time * src_hash * src_value)
+        src_hash = int(self.per.hash_unit.value)
+        src_time = int(self.per.time_unit.value)
+        src_value = Fraction(self.per.value)
+        dst_hash = int(hash_unit.value)
+        dst_time = int(time_unit.value)
+        multiplier = Fraction(dst_hash * src_time, dst_time * src_hash) / src_value
+        scaled = Fraction(int(self.sats)) * multiplier
+        return HashratePrice(sats=Sats(round(scaled)), per=new_per)
 
     def __str__(self) -> str:
         return f"{self.sats} sat/{self.per}"
