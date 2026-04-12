@@ -50,6 +50,17 @@ type = "forbidden"
 source_modules = ["hashbidder.use_cases"]
 forbidden_modules = ["hashbidder.main"]
 
+[[tool.importlinter.contracts]]
+name = "Use cases are independent of each other"
+type = "independence"
+modules = [
+    "hashbidder.use_cases.hashvalue",
+    "hashbidder.use_cases.ocean",
+    "hashbidder.use_cases.ping",
+    "hashbidder.use_cases.set_bids",
+    "hashbidder.use_cases.set_bids_target",
+]
+
 [tool.mypy]
 strict = true
 

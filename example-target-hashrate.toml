@@ -1,0 +1,9 @@
+mode = "target-hashrate"
+
+default_amount_sat = 100000
+target_hashrate_ph_s = 5.0
+max_bids_count = 5 
+
+[upstream]
+url = "stratum+tcp://167.172.107.33:23334"
+identity = "brains.worker"
