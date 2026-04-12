@@ -1,9 +1,8 @@
 """Bid runner: drive live bids toward a desired config.
 
-Sits below `use_cases/`. Use cases build a `SetBidsConfig` and hand it to
-`reconcile`, which reads current bids, plans the diff (via `bid_planner`),
-and optionally executes the plan via `execute_plan`. Use cases must not
-call each other — they share this runner instead.
+Use cases build a `SetBidsConfig` and hand it to `reconcile`, which reads
+current bids, plans the diff (via `bid_planner`), and optionally executes
+the plan via `execute_plan`.
 """
 
 import time
@@ -29,9 +28,6 @@ from hashbidder.domain.bid_planning import (
     ReconciliationPlan,
     plan_bid_changes,
 )
-
-MAX_ATTEMPTS = 3
-RETRY_DELAY_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -144,7 +140,9 @@ def _execute_with_retries(
 
     Appends all outcomes (including intermediate retry failures) to the list.
     """
-    for attempt in range(1, MAX_ATTEMPTS + 1):
+    max_attempts = 3
+    retry_delay_seconds = 5.0
+    for attempt in range(1, max_attempts + 1):
         try:
             created_id = _dispatch(client, action)
             outcomes.append(
@@ -156,7 +154,7 @@ def _execute_with_retries(
             )
             return True
         except ApiError as e:
-            is_last = attempt == MAX_ATTEMPTS
+            is_last = attempt == max_attempts
             if not e.is_transient or is_last:
                 outcomes.append(
                     ActionOutcome(
@@ -164,7 +162,7 @@ def _execute_with_retries(
                         status=ActionStatus.FAILED,
                         error=e.message,
                         attempt=attempt if e.is_transient else None,
-                        max_attempts=MAX_ATTEMPTS if e.is_transient else None,
+                        max_attempts=max_attempts if e.is_transient else None,
                     )
                 )
                 return False
@@ -175,10 +173,10 @@ def _execute_with_retries(
                     status=ActionStatus.FAILED,
                     error=e.message,
                     attempt=attempt,
-                    max_attempts=MAX_ATTEMPTS,
+                    max_attempts=max_attempts,
                 )
             )
-            sleep(RETRY_DELAY_SECONDS)
+            sleep(retry_delay_seconds)
     return False  # pragma: no cover
 
 
