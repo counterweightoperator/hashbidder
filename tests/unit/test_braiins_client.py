@@ -195,6 +195,7 @@ class TestGetMarketSettings:
         assert settings.min_bid_speed_limit_decrease_period == timedelta(seconds=300)
         assert captured[0].method == "GET"
         assert captured[0].url.path.endswith("/spot/settings")
+        assert captured[0].headers["apikey"] == API_KEY
 
 
 class TestApiErrorParsing:
