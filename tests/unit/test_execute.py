@@ -1,15 +1,15 @@
 """Tests for the execution engine: retries, failures, atomic pairs."""
 
+from hashbidder.bid_runner import ActionStatus, execute_plan
 from hashbidder.client import (
     ApiError,
     ClOrderId,
     CreateBidResult,
     Upstream,
 )
+from hashbidder.domain.bid_planning import plan_bid_changes
 from hashbidder.domain.hashrate import Hashrate, HashratePrice
 from hashbidder.domain.sats import Sats
-from hashbidder.reconcile import reconcile
-from hashbidder.use_cases import ActionStatus, execute_plan
 from tests.conftest import (
     OTHER_UPSTREAM,
     UPSTREAM,
@@ -33,7 +33,7 @@ class TestRetries:
         errors = {("cancel_bid", "B1"): [ApiError(429, "rate limited")]}
         client = FakeClient(current_bids=(bid,), errors=errors)
         config = make_config(upstream=UPSTREAM)
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 
@@ -53,7 +53,7 @@ class TestRetries:
         errors = {("cancel_bid", "B1"): [ApiError(400, "bad request")]}
         client = FakeClient(current_bids=(bid,), errors=errors)
         config = make_config(upstream=UPSTREAM)
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 
@@ -76,7 +76,7 @@ class TestRetries:
         }
         client = FakeClient(current_bids=(bid,), errors=errors)
         config = make_config(upstream=UPSTREAM)
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 
@@ -99,7 +99,7 @@ class TestContinueOnFailure:
             errors={("edit_bid", "B1"): [ApiError(400, "cooldown")]},
         )
         config = make_config(make_bid_config(500, "5.0"), make_bid_config(300, "10.0"))
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 
@@ -119,7 +119,7 @@ class TestAtomicUpstreamPairs:
         errors = {("cancel_bid", "B1"): [ApiError(400, "grace period")]}
         client = FakeClient(current_bids=(bid,), errors=errors)
         config = make_config(make_bid_config(500, "5.0"), upstream=UPSTREAM)
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 
@@ -135,7 +135,7 @@ class TestAtomicUpstreamPairs:
         bid = make_user_bid("B1", 500, "5.0", upstream=OTHER_UPSTREAM)
         client = FakeClient(current_bids=(bid,), errors={})
         config = make_config(make_bid_config(500, "5.0"), upstream=UPSTREAM)
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
         # Inject error on the create's cl_order_id — we don't know it ahead
         # of time, so inject on any create_bid call via a custom approach.
         # Instead, we'll use the fact that FakeClient errors key on cl_order_id
@@ -186,7 +186,7 @@ class TestAtomicUpstreamPairs:
         errors = {("cancel_bid", "B2"): [ApiError(400, "grace period")]}
         client = FakeClient(current_bids=bids, errors=errors)
         config = make_config(make_bid_config(300, "10.0"), upstream=UPSTREAM)
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 
@@ -208,7 +208,7 @@ class TestExecutionOrder:
         )
         client = FakeClient(current_bids=bids)
         config = make_config(make_bid_config(500, "5.0"), make_bid_config(300, "10.0"))
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 
@@ -236,7 +236,7 @@ class TestResultsSummary:
         errors = {("cancel_bid", "B1"): [ApiError(400, "nope")]}
         client = FakeClient(current_bids=(bid_match, bid_extra), errors=errors)
         config = make_config(make_bid_config(500, "5.0"), upstream=UPSTREAM)
-        plan = reconcile(config, client.get_current_bids())
+        plan = plan_bid_changes(config, client.get_current_bids())
 
         result = execute_plan(client, plan, sleep=_no_sleep)
 

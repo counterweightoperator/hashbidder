@@ -3,24 +3,43 @@
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from decimal import Decimal
-from enum import Enum
 from typing import Any, NewType, Protocol
 from urllib.parse import unquote
 
 import httpx
 
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.domain.upstream import Upstream
+from hashbidder.domain.user_bid import BidId, BidStatus, UserBid
+
+__all__ = [
+    "API_BASE",
+    "ApiError",
+    "AskItem",
+    "BidId",
+    "BidItem",
+    "BidStatus",
+    "BraiinsClient",
+    "ClOrderId",
+    "CreateBidResult",
+    "HashpowerClient",
+    "MarketSettings",
+    "OrderBook",
+    "Upstream",
+    "UserBid",
+]
 
 logger = logging.getLogger(__name__)
 
 API_BASE = httpx.URL("https://hashpower.braiins.com/v1")
 
-BidId = NewType("BidId", str)
 ClOrderId = NewType("ClOrderId", str)
 
 
@@ -67,38 +86,12 @@ class OrderBook:
 
 
 @dataclass(frozen=True)
-class Upstream:
-    """Upstream pool specification for a bid."""
+class MarketSettings:
+    """Spot market settings fetched from /spot/settings."""
 
-    url: StratumUrl
-    identity: str
-
-
-class BidStatus(Enum):
-    """Status of a user's spot bid."""
-
-    UNSPECIFIED = "BID_STATUS_UNSPECIFIED"
-    ACTIVE = "BID_STATUS_ACTIVE"
-    PENDING_CANCEL = "BID_STATUS_PENDING_CANCEL"
-    CANCELED = "BID_STATUS_CANCELED"
-    FULFILLED = "BID_STATUS_FULFILLED"
-    PAUSED = "BID_STATUS_PAUSED"
-    FROZEN = "BID_STATUS_FROZEN"
-    CREATED = "BID_STATUS_CREATED"
-
-
-@dataclass(frozen=True)
-class UserBid:
-    """A user's spot market bid."""
-
-    id: BidId
-    price: HashratePrice
-    speed_limit_ph: Hashrate
-    amount_sat: Sats
-    status: BidStatus
-    progress: Progress
-    amount_remaining_sat: Sats
-    upstream: Upstream | None = None
+    min_bid_price_decrease_period: timedelta
+    min_bid_speed_limit_decrease_period: timedelta
+    price_tick: PriceTick
 
 
 @dataclass(frozen=True)
@@ -143,6 +136,10 @@ class HashpowerClient(Protocol):
         """Cancel an existing spot bid."""
         ...
 
+    def get_market_settings(self) -> MarketSettings:
+        """Fetch the current spot market settings."""
+        ...
+
 
 class BraiinsClient:
     """HTTP client for the Braiins Hashpower API."""
@@ -150,6 +147,7 @@ class BraiinsClient:
     _SPOT_ORDERBOOK_PATH = "/spot/orderbook"
     _SPOT_BID_CURRENT_PATH = "/spot/bid/current"
     _SPOT_BID_PATH = "/spot/bid"
+    _SPOT_SETTINGS_PATH = "/spot/settings"
 
     # API wire units.
     _API_HASH_UNIT = HashUnit.EH
@@ -300,6 +298,7 @@ class BraiinsClient:
                 amount_remaining_sat=Sats(
                     int(item["state_estimate"]["amount_remaining_sat"])
                 ),
+                last_updated=datetime.fromisoformat(item["bid"]["last_updated"]),
                 upstream=Upstream(
                     url=StratumUrl(item["bid"]["dest_upstream"]["url"]),
                     identity=item["bid"]["dest_upstream"]["identity"],
@@ -364,6 +363,33 @@ class BraiinsClient:
         logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         if not response.is_success:
             self._raise_api_error(response)
+
+    def get_market_settings(self) -> MarketSettings:
+        """Fetch the current spot market settings.
+
+        Returns:
+            The market settings including bid cooldown periods.
+
+        Raises:
+            httpx.TimeoutException: If the request times out.
+            httpx.HTTPStatusError: If the server returns an error status.
+            httpx.RequestError: If a network-level error occurs.
+        """
+        url = f"{self._base_url}{self._SPOT_SETTINGS_PATH}"
+        logger.debug("GET %s", url)
+        response = self._http.get(url, headers=self._auth_headers())
+        response.raise_for_status()
+        logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
+        data: dict[str, Any] = response.json()
+        return MarketSettings(
+            min_bid_price_decrease_period=timedelta(
+                seconds=int(data["min_bid_price_decrease_period_s"])
+            ),
+            min_bid_speed_limit_decrease_period=timedelta(
+                seconds=int(data["min_bid_speed_limit_decrease_period_s"])
+            ),
+            price_tick=PriceTick(sats=Sats(int(data["tick_size_sat"]))),
+        )
 
     def cancel_bid(self, order_id: BidId) -> None:
         """Cancel an existing spot bid.

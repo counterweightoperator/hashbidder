@@ -1,12 +1,12 @@
-"""Tests for reconciliation logic."""
+"""Tests for the pure bid planner."""
 
 from hypothesis import given, settings, strategies
 from hypothesis.strategies import DrawFn, composite
 
 from hashbidder.client import BidStatus, UserBid
 from hashbidder.config import BidConfig, SetBidsConfig
+from hashbidder.domain.bid_planning import CancelReason, plan_bid_changes
 from hashbidder.domain.sats import Sats
-from hashbidder.reconcile import CancelReason, reconcile
 from tests.conftest import (
     OTHER_UPSTREAM,
     UPSTREAM,
@@ -21,7 +21,7 @@ class TestReconcile:
 
     def test_empty_config_empty_bids(self) -> None:
         """No config entries and no bids produces an empty plan."""
-        plan = reconcile(make_config(), ())
+        plan = plan_bid_changes(make_config(), ())
 
         assert plan.edits == ()
         assert plan.creates == ()
@@ -31,7 +31,7 @@ class TestReconcile:
     def test_exact_match_is_unchanged(self) -> None:
         """A bid that matches config exactly is unchanged."""
         bid = make_user_bid("B1", 500, "5.0")
-        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
+        plan = plan_bid_changes(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.unchanged) == 1
         assert plan.unchanged[0].bid is bid
@@ -43,7 +43,7 @@ class TestReconcile:
         """Config entries with no matching bid become creates."""
         c1 = make_bid_config(500, "5.0")
         c2 = make_bid_config(300, "10.0")
-        plan = reconcile(make_config(c1, c2), ())
+        plan = plan_bid_changes(make_config(c1, c2), ())
 
         assert len(plan.creates) == 2
         assert plan.creates[0].config is c1
@@ -54,7 +54,7 @@ class TestReconcile:
     def test_existing_bids_not_in_config_become_cancels(self) -> None:
         """Existing bids with no matching config entry become cancels."""
         bid = make_user_bid("B1", 500, "5.0")
-        plan = reconcile(make_config(), (bid,))
+        plan = plan_bid_changes(make_config(), (bid,))
 
         assert len(plan.cancels) == 1
         assert plan.cancels[0].bid is bid
@@ -63,7 +63,7 @@ class TestReconcile:
     def test_price_differs_becomes_edit(self) -> None:
         """A bid where only price differs becomes an edit."""
         bid = make_user_bid("B1", 400, "5.0")
-        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
+        plan = plan_bid_changes(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.edits) == 1
         edit = plan.edits[0]
@@ -75,7 +75,7 @@ class TestReconcile:
     def test_speed_limit_differs_becomes_edit(self) -> None:
         """A bid where only speed limit differs becomes an edit."""
         bid = make_user_bid("B1", 500, "3.0")
-        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
+        plan = plan_bid_changes(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.edits) == 1
         edit = plan.edits[0]
@@ -85,7 +85,7 @@ class TestReconcile:
     def test_both_fields_differ_becomes_edit(self) -> None:
         """A bid where both price and speed limit differ becomes an edit."""
         bid = make_user_bid("B1", 400, "3.0")
-        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
+        plan = plan_bid_changes(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.edits) == 1
         edit = plan.edits[0]
@@ -96,7 +96,7 @@ class TestReconcile:
         """A bid with mismatched upstream is canceled and recreated."""
         bid = make_user_bid("B1", 500, "5.0", upstream=OTHER_UPSTREAM)
         cfg = make_bid_config(500, "5.0")
-        plan = reconcile(make_config(cfg), (bid,))
+        plan = plan_bid_changes(make_config(cfg), (bid,))
 
         assert len(plan.cancels) == 1
         assert plan.cancels[0].bid is bid
@@ -119,7 +119,9 @@ class TestReconcile:
 
         cfg = make_bid_config(500, "5.0")
 
-        plan = reconcile(make_config(cfg), (bid_low, bid_high))  # pass in wrong order
+        plan = plan_bid_changes(
+            make_config(cfg), (bid_low, bid_high)
+        )  # pass in wrong order
 
         # bid_high should get the match (edit), bid_low should be canceled.
         assert len(plan.edits) == 1
@@ -137,7 +139,7 @@ class TestReconcile:
         c_exact = make_bid_config(500, "5.0")  # 0 diffs
         c_one_off = make_bid_config(600, "5.0")  # 1 diff
 
-        plan = reconcile(make_config(c_exact, c_one_off), (bid,))
+        plan = plan_bid_changes(make_config(c_exact, c_one_off), (bid,))
 
         assert len(plan.unchanged) == 1
         assert len(plan.creates) == 1
@@ -146,7 +148,7 @@ class TestReconcile:
     def test_paused_bids_skipped(self) -> None:
         """PAUSED bids are not matched, edited, or canceled."""
         bid = make_user_bid("B1", 500, "5.0", status=BidStatus.PAUSED)
-        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
+        plan = plan_bid_changes(make_config(make_bid_config(500, "5.0")), (bid,))
 
         # The PAUSED bid is invisible to reconciliation — config entry becomes a create.
         assert plan.unchanged == ()
@@ -157,7 +159,7 @@ class TestReconcile:
     def test_frozen_bids_skipped(self) -> None:
         """FROZEN bids are not matched, edited, or canceled."""
         bid = make_user_bid("B1", 500, "5.0", status=BidStatus.FROZEN)
-        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
+        plan = plan_bid_changes(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert plan.unchanged == ()
         assert plan.cancels == ()
@@ -166,7 +168,7 @@ class TestReconcile:
     def test_canceled_bids_skipped(self) -> None:
         """Already-canceled bids are ignored."""
         bid = make_user_bid("B1", 500, "5.0", status=BidStatus.CANCELED)
-        plan = reconcile(make_config(make_bid_config(500, "5.0")), (bid,))
+        plan = plan_bid_changes(make_config(make_bid_config(500, "5.0")), (bid,))
 
         assert len(plan.creates) == 1
         assert plan.cancels == ()
@@ -183,7 +185,7 @@ class TestReconcile:
         c_unchanged = make_bid_config(500, "5.0")
         c_edit = make_bid_config(300, "10.0")
 
-        plan = reconcile(
+        plan = plan_bid_changes(
             make_config(c_unchanged, c_edit),
             (bid_unchanged, bid_edit, bid_cancel, bid_paused),
         )
@@ -208,7 +210,7 @@ class TestReconcile:
             make_user_bid("B1", 500, "5.0"),
             make_user_bid("B2", 300, "10.0"),
         )
-        plan = reconcile(make_config(), bids)
+        plan = plan_bid_changes(make_config(), bids)
 
         assert len(plan.cancels) == 2
         assert plan.edits == ()
@@ -219,7 +221,7 @@ class TestReconcile:
         """A bid that would be an edit but has wrong upstream gets cancel+create."""
         bid = make_user_bid("B1", 400, "5.0", upstream=OTHER_UPSTREAM)
         cfg = make_bid_config(500, "5.0")
-        plan = reconcile(make_config(cfg), (bid,))
+        plan = plan_bid_changes(make_config(cfg), (bid,))
 
         assert len(plan.cancels) == 1
         assert plan.cancels[0].reason == CancelReason.UPSTREAM_MISMATCH
@@ -235,7 +237,7 @@ class TestReconcile:
         )
         c1 = make_bid_config(500, "5.0")
         c2 = make_bid_config(300, "10.0")
-        plan = reconcile(make_config(c1, c2), bids)
+        plan = plan_bid_changes(make_config(c1, c2), bids)
 
         assert len(plan.creates) == 2
         assert plan.cancels == ()
@@ -296,7 +298,7 @@ class TestReconcileProperties:
     ) -> None:
         """Each ACTIVE/CREATED bid is in exactly one of: edit, unchanged, cancel."""
         cfg, bids = inputs
-        plan = reconcile(cfg, bids)
+        plan = plan_bid_changes(cfg, bids)
 
         edited_ids = {e.bid.id for e in plan.edits}
         unchanged_ids = {u.bid.id for u in plan.unchanged}
@@ -318,7 +320,7 @@ class TestReconcileProperties:
     ) -> None:
         """PAUSED, FROZEN, and other non-manageable bids never appear in the plan."""
         cfg, bids = inputs
-        plan = reconcile(cfg, bids)
+        plan = plan_bid_changes(cfg, bids)
 
         non_manageable_ids = {b.id for b in bids if b.status not in _MANAGEABLE}
 
@@ -336,7 +338,7 @@ class TestReconcileProperties:
     ) -> None:
         """Each config entry is either matched (edit/unchanged) or becomes a create."""
         cfg, bids = inputs
-        plan = reconcile(cfg, bids)
+        plan = plan_bid_changes(cfg, bids)
 
         matched_count = len(plan.edits) + len(plan.unchanged)
         # Upstream-mismatch cancels consume a config entry and produce a create.
@@ -355,7 +357,7 @@ class TestReconcileProperties:
     ) -> None:
         """Every upstream-mismatch cancel has a create with replaces set to that bid."""
         cfg, bids = inputs
-        plan = reconcile(cfg, bids)
+        plan = plan_bid_changes(cfg, bids)
 
         mismatch_bids = {
             c.bid.id for c in plan.cancels if c.reason == CancelReason.UPSTREAM_MISMATCH
@@ -372,7 +374,7 @@ class TestReconcileProperties:
     ) -> None:
         """All creates use the config's default_amount."""
         cfg, bids = inputs
-        plan = reconcile(cfg, bids)
+        plan = plan_bid_changes(cfg, bids)
 
         for create in plan.creates:
             assert create.amount == cfg.default_amount

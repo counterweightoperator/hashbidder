@@ -4,21 +4,22 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from hashbidder.bid_runner import ActionOutcome, ActionStatus, SetBidsResult
 from hashbidder.client import UserBid
-from hashbidder.domain.btc_address import BtcAddress
-from hashbidder.domain.hashrate import HashratePrice, HashUnit
-from hashbidder.domain.sats import Sats
-from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.hashvalue import HashvalueComponents
-from hashbidder.ocean_client import AccountStats
-from hashbidder.reconcile import (
+from hashbidder.domain.bid_planning import (
     CancelAction,
     CancelReason,
     CreateAction,
     EditAction,
     ReconciliationPlan,
 )
-from hashbidder.use_cases import ActionOutcome, ActionStatus
+from hashbidder.domain.btc_address import BtcAddress
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.hashvalue import HashvalueComponents
+from hashbidder.ocean_client import AccountStats
+from hashbidder.use_cases import SetBidsTargetResult
 
 
 def _fmt_speed(value: Decimal) -> str:
@@ -269,6 +270,140 @@ def format_ocean_stats(stats: AccountStats, address: BtcAddress) -> str:
         value_str = f"{display.value:.2f} {display.hash_unit.name}/s"
         lines.append(f"  {label:>6s}    {value_str}")
 
+    return "\n".join(lines)
+
+
+def format_target_inputs(
+    ocean_24h: Hashrate,
+    target: Hashrate,
+    needed: Hashrate,
+    price: HashratePrice,
+) -> str:
+    """Render the inputs that drove a target-hashrate planning run."""
+    ocean_ph = ocean_24h.to(HashUnit.PH, TimeUnit.SECOND).value
+    target_ph = target.to(HashUnit.PH, TimeUnit.SECOND).value
+    needed_ph = needed.to(HashUnit.PH, TimeUnit.SECOND).value
+    price_ph_day = _to_ph_day(price)
+    lines = [
+        "=== Target Hashrate Inputs ===",
+        f"  Ocean 24h:    {_fmt_speed(ocean_ph)} PH/s",
+        f"  Target:       {_fmt_speed(target_ph)} PH/s",
+        f"  Needed:       {_fmt_speed(needed_ph)} PH/s",
+        f"  Market price: {price_ph_day} sat/PH/Day",
+    ]
+    return "\n".join(lines)
+
+
+def format_set_bids_result(result: SetBidsResult) -> str:
+    """Render a complete set-bids run (dry run or executed) as one string."""
+    plan = result.plan
+    has_changes = bool(plan.edits or plan.creates or plan.cancels)
+
+    if result.execution is None:
+        return format_plan(plan, result.skipped_bids)
+
+    if not has_changes:
+        return "No changes needed."
+
+    sections = ["=== Executing Changes ==="]
+    sections.extend(format_outcome(o) for o in result.execution.outcomes)
+    sections.append("")
+    sections.append("=== Results ===")
+    sections.append(format_results_summary(result.execution.outcomes))
+    sections.append("")
+    sections.append("=== Current Bids ===")
+    sections.append(format_current_bids(result.execution.final_bids))
+    return "\n".join(sections)
+
+
+def format_set_bids_target_result(result: SetBidsTargetResult) -> str:
+    """Render a complete target-hashrate run: inputs followed by set-bids output."""
+    inputs = result.inputs
+    return "\n".join(
+        [
+            format_target_inputs(
+                ocean_24h=inputs.ocean_24h,
+                target=inputs.target,
+                needed=inputs.needed,
+                price=inputs.price,
+            ),
+            "",
+            format_set_bids_result(result.set_bids_result),
+        ]
+    )
+
+
+def format_set_bids_target_result_verbose(result: SetBidsTargetResult) -> str:
+    """Render a target-hashrate run with the reasoning behind every decision."""
+    inputs = result.inputs
+    sections = [
+        format_target_inputs(
+            ocean_24h=inputs.ocean_24h,
+            target=inputs.target,
+            needed=inputs.needed,
+            price=inputs.price,
+        ),
+        "",
+        _format_target_distribution_math(
+            target=inputs.target,
+            ocean_24h=inputs.ocean_24h,
+            needed=inputs.needed,
+            price=inputs.price,
+            max_bids_count=inputs.max_bids_count,
+        ),
+        "",
+        _format_target_cooldowns(inputs.annotated_bids),
+        "",
+        format_set_bids_result(result.set_bids_result),
+    ]
+    return "\n".join(sections)
+
+
+def _format_target_distribution_math(
+    target: Hashrate,
+    ocean_24h: Hashrate,
+    needed: Hashrate,
+    price: HashratePrice,
+    max_bids_count: int,
+) -> str:
+    target_ph = target.to(HashUnit.PH, TimeUnit.SECOND).value
+    ocean_ph = ocean_24h.to(HashUnit.PH, TimeUnit.SECOND).value
+    needed_ph = needed.to(HashUnit.PH, TimeUnit.SECOND).value
+    price_ph_day = _to_ph_day(price)
+    served = Sats(int(price_ph_day) - 1)
+    lines = [
+        "=== Reasoning ===",
+        f"  Price scan:   lowest served bid {served} sat/PH/Day "
+        f"→ undercut by 1 sat → {price_ph_day} sat/PH/Day",
+        f"  Needed math:  2 * {_fmt_speed(target_ph)} (target) "
+        f"- {_fmt_speed(ocean_ph)} (ocean 24h) = {_fmt_speed(needed_ph)} PH/s",
+        f"  Slot budget:  up to {max_bids_count} bids "
+        f"(min 1 PH/s each, quantized to 0.01 PH/s)",
+    ]
+    return "\n".join(lines)
+
+
+def _format_target_cooldowns(annotated: tuple) -> str:  # type: ignore[type-arg]
+    lines = ["=== Cooldown Status ==="]
+    if not annotated:
+        lines.append("  (no existing bids)")
+        return "\n".join(lines)
+    for entry in annotated:
+        bid = entry.bid
+        cd = entry.cooldown
+        if cd.price_cooldown and cd.speed_cooldown:
+            status = "price+speed locked"
+        elif cd.price_cooldown:
+            status = "price locked (speed free)"
+        elif cd.speed_cooldown:
+            status = "speed locked (price free)"
+        else:
+            status = "free"
+        price_ph_day = _to_ph_day(bid.price)
+        lines.append(
+            f"  {bid.id}  price={price_ph_day} sat/PH/Day  "
+            f"limit={bid.speed_limit_ph}  → {status}"
+        )
     return "\n".join(lines)
 
 

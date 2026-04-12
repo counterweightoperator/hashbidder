@@ -8,7 +8,7 @@ import pytest
 from hypothesis import given, settings, strategies
 from hypothesis.strategies import DrawFn, composite
 
-from hashbidder.config import SetBidsConfig, load_config
+from hashbidder.config import SetBidsConfig, TargetHashrateConfig, load_config
 from hashbidder.domain.hashrate import Hashrate, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
@@ -98,6 +98,7 @@ speed_limit_ph_s = 10.0
 """,
         )
         config = load_config(path)
+        assert isinstance(config, SetBidsConfig)
 
         assert config.default_amount == Sats(100000)
         assert str(config.upstream.url) == "stratum+tcp://pool.example.com:3333"
@@ -130,6 +131,7 @@ identity = "worker1"
 """,
         )
         config = load_config(path)
+        assert isinstance(config, SetBidsConfig)
 
         assert config.bids == ()
 
@@ -320,6 +322,7 @@ speed_limit_ph_s = 5.0
 """,
         )
         config = load_config(path)
+        assert isinstance(config, SetBidsConfig)
         assert len(config.bids) == 2
         assert config.bids[0] == config.bids[1]
 
@@ -343,13 +346,168 @@ identity = "worker1"
         with pytest.raises(FileNotFoundError):
             load_config(tmp_path / "nonexistent.toml")
 
+    def test_explicit_bids_mode_field(self, tmp_path: Path) -> None:
+        """Mode = 'explicit-bids' parses the same as absent mode."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "explicit-bids"
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 5.0
+""",
+        )
+        config = load_config(path)
+        assert isinstance(config, SetBidsConfig)
+        assert len(config.bids) == 1
+
+    def test_target_hashrate_mode(self, tmp_path: Path) -> None:
+        """A valid target-hashrate config parses into TargetHashrateConfig."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10.0
+max_bids_count = 3
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        config = load_config(path)
+        assert isinstance(config, TargetHashrateConfig)
+        assert config.default_amount == Sats(100000)
+        assert config.max_bids_count == 3
+        assert config.target_hashrate == Hashrate(
+            Decimal("10.0"), HashUnit.PH, TimeUnit.SECOND
+        )
+        assert config.upstream.identity == "worker1"
+
+    def test_target_hashrate_rejects_bids_section(self, tmp_path: Path) -> None:
+        """target-hashrate mode with [[bids]] sections raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10.0
+max_bids_count = 3
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 5.0
+""",
+        )
+        with pytest.raises(ValueError, match="target-hashrate"):
+            load_config(path)
+
+    def test_target_hashrate_missing_target(self, tmp_path: Path) -> None:
+        """Missing target_hashrate_ph_s raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+max_bids_count = 3
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        with pytest.raises(ValueError, match="target_hashrate_ph_s"):
+            load_config(path)
+
+    def test_target_hashrate_missing_max_bids_count(self, tmp_path: Path) -> None:
+        """Missing max_bids_count raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10.0
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        with pytest.raises(ValueError, match="max_bids_count"):
+            load_config(path)
+
+    def test_target_hashrate_non_positive_target(self, tmp_path: Path) -> None:
+        """target_hashrate_ph_s <= 0 raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 0
+max_bids_count = 3
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        with pytest.raises(ValueError, match="target_hashrate_ph_s must be positive"):
+            load_config(path)
+
+    def test_target_hashrate_max_bids_count_below_one(self, tmp_path: Path) -> None:
+        """max_bids_count < 1 raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10.0
+max_bids_count = 0
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        with pytest.raises(ValueError, match="max_bids_count must be >= 1"):
+            load_config(path)
+
+    def test_invalid_mode(self, tmp_path: Path) -> None:
+        """An unknown mode value raises ValueError."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "nonsense"
+default_amount_sat = 100000
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        with pytest.raises(ValueError, match="Invalid mode"):
+            load_config(path)
+
 
 def _load_from_string(toml_str: str) -> SetBidsConfig:
-    """Write TOML to a temp file and load it."""
+    """Write TOML to a temp file and load it as an explicit-bids config."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
         f.write(toml_str)
         f.flush()
-        return load_config(Path(f.name))
+        config = load_config(Path(f.name))
+    assert isinstance(config, SetBidsConfig)
+    return config
 
 
 class TestLoadConfigProperties:
