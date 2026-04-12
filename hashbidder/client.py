@@ -375,7 +375,7 @@ class BraiinsClient:
         """
         url = f"{self._base_url}{self._SPOT_SETTINGS_PATH}"
         logger.debug("GET %s", url)
-        response = self._http.get(url)
+        response = self._http.get(url, headers=self._auth_headers())
         response.raise_for_status()
         logger.debug("Response %s (%d bytes)", response.status_code, len(response.text))
         data: dict[str, Any] = response.json()
