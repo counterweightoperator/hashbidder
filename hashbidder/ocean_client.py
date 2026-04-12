@@ -12,7 +12,7 @@ from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 
-OCEAN_BASE_URL = "https://ocean.xyz"
+DEFAULT_OCEAN_URL = httpx.URL("https://ocean.xyz")
 
 
 class OceanTimeWindow(Enum):
@@ -115,8 +115,14 @@ class OceanClient:
 
     _HASHRATE_ROWS_PATH = "/template/workers/hashrates/rows"
 
-    def __init__(self, http_client: httpx.Client) -> None:
-        """Initialize with an httpx client."""
+    def __init__(self, base_url: httpx.URL, http_client: httpx.Client) -> None:
+        """Initialize the client.
+
+        Args:
+            base_url: The base URL of the Ocean.xyz instance.
+            http_client: The httpx.Client to use for requests.
+        """
+        self._base_url = base_url
         self._http = http_client
 
     def get_account_stats(self, address: BtcAddress) -> AccountStats:
@@ -125,7 +131,7 @@ class OceanClient:
         Raises:
             OceanError: On HTTP errors or unexpected response schema.
         """
-        url = f"{OCEAN_BASE_URL}{self._HASHRATE_ROWS_PATH}"
+        url = f"{self._base_url}{self._HASHRATE_ROWS_PATH}"
         resp = self._http.get(url, params={"user": address.value})
         if not resp.is_success:
             raise OceanError(

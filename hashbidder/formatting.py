@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import httpx
+
 from hashbidder.bid_runner import ActionOutcome, ActionStatus, SetBidsResult
 from hashbidder.client import UserBid
 from hashbidder.domain.bid_planning import (
@@ -412,7 +414,9 @@ def format_hashvalue(components: HashvalueComponents) -> str:
     return f"Hashvalue: {components.hashvalue.sats} sat/PH/Day"
 
 
-def format_hashvalue_verbose(components: HashvalueComponents, mempool_url: str) -> str:
+def format_hashvalue_verbose(
+    components: HashvalueComponents, mempool_url: httpx.URL
+) -> str:
     """Format hashvalue with all intermediate components."""
     lines = [
         format_hashvalue(components),

@@ -40,7 +40,10 @@ _VALID_HTML = """\
 
 
 def _make_client(handler: httpx.MockTransport) -> OceanClient:
-    return OceanClient(http_client=httpx.Client(transport=handler))
+    return OceanClient(
+        base_url=httpx.URL("https://ocean.example.com"),
+        http_client=httpx.Client(transport=handler),
+    )
 
 
 class TestGetAccountStats:
