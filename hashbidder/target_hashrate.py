@@ -53,6 +53,6 @@ def find_market_price(orderbook: OrderBook) -> HashratePrice:
         raise ValueError("Order book has no served bids; cannot pick a price")
     cheapest = min(served, key=lambda b: b.price.sats)
     return HashratePrice(
-        sats=cheapest.price.sats + Sats(1),
+        sats=Sats(cheapest.price.sats + 1),
         per=cheapest.price.per,
     )

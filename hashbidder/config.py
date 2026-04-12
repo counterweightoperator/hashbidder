@@ -7,11 +7,20 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from hashbidder.client import Upstream
+from hashbidder.domain.bid_config import BidConfig, SetBidsConfig
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.domain.upstream import Upstream
+
+__all__ = [
+    "BidConfig",
+    "ConfigMode",
+    "SetBidsConfig",
+    "TargetHashrateConfig",
+    "load_config",
+]
 
 
 class ConfigMode(Enum):
@@ -19,23 +28,6 @@ class ConfigMode(Enum):
 
     EXPLICIT_BIDS = "explicit-bids"
     TARGET_HASHRATE = "target-hashrate"
-
-
-@dataclass(frozen=True)
-class BidConfig:
-    """A single desired bid from the config file."""
-
-    price: HashratePrice
-    speed_limit: Hashrate
-
-
-@dataclass(frozen=True)
-class SetBidsConfig:
-    """Parsed set-bids configuration (explicit bids mode)."""
-
-    default_amount: Sats
-    upstream: Upstream
-    bids: tuple[BidConfig, ...]
 
 
 @dataclass(frozen=True)

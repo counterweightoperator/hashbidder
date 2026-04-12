@@ -3,11 +3,7 @@
 from decimal import Decimal
 
 from hashbidder.client import BidStatus
-from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
-from hashbidder.domain.sats import Sats
-from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.formatting import format_plan
-from hashbidder.reconcile import (
+from hashbidder.domain.bid_planning import (
     CancelAction,
     CancelReason,
     CreateAction,
@@ -15,6 +11,10 @@ from hashbidder.reconcile import (
     ReconciliationPlan,
     UnchangedBid,
 )
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.formatting import format_plan
 from tests.conftest import PH_DAY, UPSTREAM, make_bid_config, make_user_bid
 
 

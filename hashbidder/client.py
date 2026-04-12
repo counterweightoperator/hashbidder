@@ -5,7 +5,6 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from enum import Enum
 from typing import Any, NewType, Protocol
 from urllib.parse import unquote
 
@@ -16,12 +15,30 @@ from hashbidder.domain.progress import Progress
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.domain.upstream import Upstream
+from hashbidder.domain.user_bid import BidId, BidStatus, UserBid
+
+__all__ = [
+    "API_BASE",
+    "ApiError",
+    "AskItem",
+    "BidId",
+    "BidItem",
+    "BidStatus",
+    "BraiinsClient",
+    "ClOrderId",
+    "CreateBidResult",
+    "HashpowerClient",
+    "MarketSettings",
+    "OrderBook",
+    "Upstream",
+    "UserBid",
+]
 
 logger = logging.getLogger(__name__)
 
 API_BASE = httpx.URL("https://hashpower.braiins.com/v1")
 
-BidId = NewType("BidId", str)
 ClOrderId = NewType("ClOrderId", str)
 
 
@@ -65,42 +82,6 @@ class OrderBook:
 
     bids: tuple[BidItem, ...]
     asks: tuple[AskItem, ...]
-
-
-@dataclass(frozen=True)
-class Upstream:
-    """Upstream pool specification for a bid."""
-
-    url: StratumUrl
-    identity: str
-
-
-class BidStatus(Enum):
-    """Status of a user's spot bid."""
-
-    UNSPECIFIED = "BID_STATUS_UNSPECIFIED"
-    ACTIVE = "BID_STATUS_ACTIVE"
-    PENDING_CANCEL = "BID_STATUS_PENDING_CANCEL"
-    CANCELED = "BID_STATUS_CANCELED"
-    FULFILLED = "BID_STATUS_FULFILLED"
-    PAUSED = "BID_STATUS_PAUSED"
-    FROZEN = "BID_STATUS_FROZEN"
-    CREATED = "BID_STATUS_CREATED"
-
-
-@dataclass(frozen=True)
-class UserBid:
-    """A user's spot market bid."""
-
-    id: BidId
-    price: HashratePrice
-    speed_limit_ph: Hashrate
-    amount_sat: Sats
-    status: BidStatus
-    progress: Progress
-    amount_remaining_sat: Sats
-    last_updated: datetime
-    upstream: Upstream | None
 
 
 @dataclass(frozen=True)

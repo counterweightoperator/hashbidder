@@ -19,13 +19,11 @@ from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.formatting import (
-    format_current_bids,
     format_hashvalue,
     format_hashvalue_verbose,
     format_ocean_stats,
-    format_outcome,
-    format_plan,
-    format_results_summary,
+    format_set_bids_result,
+    format_set_bids_target_result,
 )
 from hashbidder.mempool_client import (
     DEFAULT_MEMPOOL_URL,
@@ -194,7 +192,7 @@ def hashvalue(ctx: click.Context) -> None:
     with _mempool_errors():
         components = use_cases.get_hashvalue(app.mempool)
 
-    verbose = ctx.parent is not None and ctx.parent.params.get("verbose", False)
+    verbose = ctx.find_root().params["verbose"]
     mempool_url = os.environ.get("MEMPOOL_URL") or str(DEFAULT_MEMPOOL_URL)
     if verbose:
         click.echo(format_hashvalue_verbose(components, mempool_url))
@@ -224,6 +222,17 @@ def ocean_account_stats(ctx: click.Context) -> None:
     click.echo(format_ocean_stats(stats, address))
 
 
+def _resolve_ocean_address(ctx: click.Context) -> BtcAddress:
+    """Read and parse OCEAN_ADDRESS from the environment, or exit with error."""
+    address_str = os.environ.get("OCEAN_ADDRESS")
+    if not address_str:
+        raise click.ClickException("OCEAN_ADDRESS environment variable is required.")
+    try:
+        return BtcAddress(address_str)
+    except ValueError as e:
+        raise click.ClickException(f"invalid OCEAN_ADDRESS: {e}") from e
+
+
 @cli.command("set-bids")
 @click.option(
     "--bid-config",
@@ -234,44 +243,28 @@ def ocean_account_stats(ctx: click.Context) -> None:
 @click.option(
     "--dry-run", is_flag=True, help="Print what would change without executing."
 )
-@click.pass_obj
-def set_bids(app: Clients, bid_config: Path, dry_run: bool) -> None:
+@click.pass_context
+def set_bids(ctx: click.Context, bid_config: Path, dry_run: bool) -> None:
     """Set bids to match a config file."""
+    app: Clients = ctx.obj
     assert app.braiins is not None
+    assert app.ocean is not None
     with _api_errors():
         config = load_config(bid_config)
 
     if isinstance(config, TargetHashrateConfig):
-        raise click.ClickException("target-hashrate mode is not yet implemented")
+        address = _resolve_ocean_address(ctx)
+        with _api_errors(), _ocean_errors():
+            target_result = use_cases.set_bids_target(
+                app.braiins, app.ocean, address, config, dry_run
+            )
+        click.echo(format_set_bids_target_result(target_result))
+        return
+
     assert isinstance(config, SetBidsConfig)
-
     with _api_errors():
-        result = use_cases.set_bids(app.braiins, config)
-
-    plan = result.plan
-    has_changes = plan.edits or plan.creates or plan.cancels
-
-    if dry_run:
-        click.echo(format_plan(plan, result.skipped_bids))
-        return
-
-    if not has_changes:
-        click.echo("No changes needed.")
-        return
-
-    click.echo("=== Executing Changes ===")
-    exec_result = use_cases.execute_plan(app.braiins, plan)
-
-    for outcome in exec_result.outcomes:
-        click.echo(format_outcome(outcome))
-
-    click.echo("")
-    click.echo("=== Results ===")
-    click.echo(format_results_summary(exec_result.outcomes))
-
-    click.echo("")
-    click.echo("=== Current Bids ===")
-    click.echo(format_current_bids(exec_result.final_bids))
+        result = use_cases.set_bids(app.braiins, config, dry_run)
+    click.echo(format_set_bids_result(result))
 
 
 def main() -> None:
