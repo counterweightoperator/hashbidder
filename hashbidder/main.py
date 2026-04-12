@@ -24,6 +24,7 @@ from hashbidder.formatting import (
     format_ocean_stats,
     format_set_bids_result,
     format_set_bids_target_result,
+    format_set_bids_target_result_verbose,
 )
 from hashbidder.mempool_client import (
     DEFAULT_MEMPOOL_URL,
@@ -258,7 +259,11 @@ def set_bids(ctx: click.Context, bid_config: Path, dry_run: bool) -> None:
             target_result = use_cases.set_bids_target(
                 app.braiins, app.ocean, address, config, dry_run
             )
-        click.echo(format_set_bids_target_result(target_result))
+        verbose = ctx.find_root().params["verbose"]
+        if verbose:
+            click.echo(format_set_bids_target_result_verbose(target_result))
+        else:
+            click.echo(format_set_bids_target_result(target_result))
         return
 
     assert isinstance(config, SetBidsConfig)

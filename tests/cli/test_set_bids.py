@@ -341,6 +341,31 @@ class TestTargetHashrateMode:
         assert "3 succeeded, 0 failed" in result.output
         assert len(client.get_current_bids()) == 3
 
+    def test_verbose_dry_run_prints_reasoning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`-v set-bids --dry-run` prints reasoning + cooldown sections."""
+        config_file = tmp_path / "bids.toml"
+        config_file.write_text(TARGET_TOML)
+        monkeypatch.setenv("OCEAN_ADDRESS", _OCEAN_ADDRESS)
+
+        client = FakeClient(orderbook=_target_orderbook())
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["-v", "set-bids", "--bid-config", str(config_file), "--dry-run"],
+            obj=Clients(braiins=client, ocean=ocean),
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "=== Target Hashrate Inputs ===" in result.output
+        assert "=== Reasoning ===" in result.output
+        assert "Price scan:" in result.output
+        assert "Needed math:" in result.output
+        assert "=== Cooldown Status ===" in result.output
+        assert "(no existing bids)" in result.output
+
     def test_missing_ocean_address(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

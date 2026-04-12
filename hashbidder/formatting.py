@@ -333,6 +333,80 @@ def format_set_bids_target_result(result: SetBidsTargetResult) -> str:
     )
 
 
+def format_set_bids_target_result_verbose(result: SetBidsTargetResult) -> str:
+    """Render a target-hashrate run with the reasoning behind every decision."""
+    inputs = result.inputs
+    sections = [
+        format_target_inputs(
+            ocean_24h=inputs.ocean_24h,
+            target=inputs.target,
+            needed=inputs.needed,
+            price=inputs.price,
+        ),
+        "",
+        _format_target_distribution_math(
+            target=inputs.target,
+            ocean_24h=inputs.ocean_24h,
+            needed=inputs.needed,
+            price=inputs.price,
+            max_bids_count=inputs.max_bids_count,
+        ),
+        "",
+        _format_target_cooldowns(inputs.annotated_bids),
+        "",
+        format_set_bids_result(result.set_bids_result),
+    ]
+    return "\n".join(sections)
+
+
+def _format_target_distribution_math(
+    target: Hashrate,
+    ocean_24h: Hashrate,
+    needed: Hashrate,
+    price: HashratePrice,
+    max_bids_count: int,
+) -> str:
+    target_ph = target.to(HashUnit.PH, TimeUnit.SECOND).value
+    ocean_ph = ocean_24h.to(HashUnit.PH, TimeUnit.SECOND).value
+    needed_ph = needed.to(HashUnit.PH, TimeUnit.SECOND).value
+    price_ph_day = _to_ph_day(price)
+    served = Sats(int(price_ph_day) - 1)
+    lines = [
+        "=== Reasoning ===",
+        f"  Price scan:   lowest served bid {served} sat/PH/Day "
+        f"→ undercut by 1 sat → {price_ph_day} sat/PH/Day",
+        f"  Needed math:  2 * {_fmt_speed(target_ph)} (target) "
+        f"- {_fmt_speed(ocean_ph)} (ocean 24h) = {_fmt_speed(needed_ph)} PH/s",
+        f"  Slot budget:  up to {max_bids_count} bids "
+        f"(min 1 PH/s each, quantized to 0.01 PH/s)",
+    ]
+    return "\n".join(lines)
+
+
+def _format_target_cooldowns(annotated: tuple) -> str:  # type: ignore[type-arg]
+    lines = ["=== Cooldown Status ==="]
+    if not annotated:
+        lines.append("  (no existing bids)")
+        return "\n".join(lines)
+    for entry in annotated:
+        bid = entry.bid
+        cd = entry.cooldown
+        if cd.price_cooldown and cd.speed_cooldown:
+            status = "price+speed locked"
+        elif cd.price_cooldown:
+            status = "price locked (speed free)"
+        elif cd.speed_cooldown:
+            status = "speed locked (price free)"
+        else:
+            status = "free"
+        price_ph_day = _to_ph_day(bid.price)
+        lines.append(
+            f"  {bid.id}  price={price_ph_day} sat/PH/Day  "
+            f"limit={bid.speed_limit_ph}  → {status}"
+        )
+    return "\n".join(lines)
+
+
 def format_hashvalue(components: HashvalueComponents) -> str:
     """Format hashvalue as a single line."""
     return f"Hashvalue: {components.hashvalue.sats} sat/PH/Day"
