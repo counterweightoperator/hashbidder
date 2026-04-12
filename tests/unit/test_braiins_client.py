@@ -1,6 +1,7 @@
 """Tests for BraiinsClient HTTP serialization and error handling."""
 
 import json
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from urllib.parse import quote
 
@@ -126,6 +127,74 @@ class TestCancelBid:
         body = json.loads(req.content)
         assert body["order_id"] == "B456"
         assert req.headers["apikey"] == API_KEY
+
+
+class TestGetCurrentBids:
+    """Tests for BraiinsClient.get_current_bids parsing."""
+
+    @staticmethod
+    def _bid_response_body() -> dict[str, object]:
+        return {
+            "items": [
+                {
+                    "bid": {
+                        "id": "B42",
+                        "price_sat": 500_000,
+                        "speed_limit_ph": "5.0",
+                        "amount_sat": 100_000,
+                        "status": "BID_STATUS_ACTIVE",
+                        "last_updated": "2026-04-12T10:30:00+00:00",
+                        "dest_upstream": {
+                            "url": "stratum+tcp://pool.example.com:3333",
+                            "identity": "worker1",
+                        },
+                    },
+                    "state_estimate": {
+                        "progress_pct": "10",
+                        "amount_remaining_sat": 90_000,
+                    },
+                },
+            ]
+        }
+
+    def test_parses_last_updated(self) -> None:
+        """last_updated is parsed from the bid response JSON as a datetime."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=self._bid_response_body())
+
+        client = _make_client(httpx.MockTransport(handler))
+        bids = client.get_current_bids()
+
+        assert len(bids) == 1
+        assert bids[0].id == BidId("B42")
+        assert bids[0].last_updated == datetime(2026, 4, 12, 10, 30, tzinfo=UTC)
+
+
+class TestGetMarketSettings:
+    """Tests for BraiinsClient.get_market_settings parsing."""
+
+    def test_parses_cooldown_periods(self) -> None:
+        """Both cooldown fields are parsed from /spot/settings response."""
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(
+                200,
+                json={
+                    "min_bid_price_decrease_period_s": 600,
+                    "min_bid_speed_limit_decrease_period_s": 300,
+                },
+            )
+
+        client = _make_client(httpx.MockTransport(handler))
+        settings = client.get_market_settings()
+
+        assert settings.min_bid_price_decrease_period == timedelta(seconds=600)
+        assert settings.min_bid_speed_limit_decrease_period == timedelta(seconds=300)
+        assert captured[0].method == "GET"
+        assert captured[0].url.path.endswith("/spot/settings")
 
 
 class TestApiErrorParsing:

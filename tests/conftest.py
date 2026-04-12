@@ -1,5 +1,6 @@
 """Shared test fixtures and helpers."""
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from hashbidder.client import (
@@ -8,6 +9,7 @@ from hashbidder.client import (
     BidStatus,
     ClOrderId,
     CreateBidResult,
+    MarketSettings,
     OrderBook,
     Upstream,
     UserBid,
@@ -33,6 +35,15 @@ OTHER_UPSTREAM = Upstream(
 PH_DAY = Hashrate(Decimal(1), HashUnit.PH, TimeUnit.DAY)
 EH_DAY = Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY)
 
+# Default bid last_updated timestamp used whenever a test doesn't care.
+DEFAULT_LAST_UPDATED = datetime(1970, 1, 1, tzinfo=UTC)
+
+# Canned market settings for FakeClient.
+DEFAULT_MARKET_SETTINGS = MarketSettings(
+    min_bid_price_decrease_period=timedelta(seconds=600),
+    min_bid_speed_limit_decrease_period=timedelta(seconds=600),
+)
+
 
 def make_user_bid(
     bid_id: str,
@@ -42,6 +53,7 @@ def make_user_bid(
     amount: int = 100_000,
     remaining: int | None = None,
     upstream: Upstream | None = None,
+    last_updated: datetime = DEFAULT_LAST_UPDATED,
 ) -> UserBid:
     """Build a UserBid for tests.
 
@@ -56,6 +68,7 @@ def make_user_bid(
         status=status,
         progress=Progress.from_percentage(Decimal("0")),
         amount_remaining_sat=Sats(remaining if remaining is not None else amount),
+        last_updated=last_updated,
         upstream=upstream or UPSTREAM,
     )
 
@@ -91,13 +104,19 @@ class FakeClient:
         orderbook: OrderBook | None = None,
         current_bids: tuple[UserBid, ...] = (),
         errors: dict[tuple[str, str], list[ApiError]] | None = None,
+        market_settings: MarketSettings = DEFAULT_MARKET_SETTINGS,
     ) -> None:
         """Initialize with optional canned data and error injection."""
         self._orderbook = orderbook or OrderBook(bids=(), asks=())
         self._bids: list[UserBid] = list(current_bids)
         self._next_id = 1
         self._errors = errors or {}
+        self._market_settings = market_settings
         self.calls: list[tuple[str, ...]] = []
+
+    def get_market_settings(self) -> MarketSettings:
+        """Return the canned market settings."""
+        return self._market_settings
 
     def _maybe_raise(self, method: str, key: str) -> None:
         errs = self._errors.get((method, key))
@@ -134,6 +153,7 @@ class FakeClient:
                 status=BidStatus.CREATED,
                 progress=Progress.from_percentage(Decimal("0")),
                 amount_remaining_sat=amount_sat,
+                last_updated=DEFAULT_LAST_UPDATED,
                 upstream=upstream,
             )
         )
@@ -158,6 +178,7 @@ class FakeClient:
                     status=bid.status,
                     progress=bid.progress,
                     amount_remaining_sat=bid.amount_remaining_sat,
+                    last_updated=bid.last_updated,
                     upstream=bid.upstream,
                 )
                 return
