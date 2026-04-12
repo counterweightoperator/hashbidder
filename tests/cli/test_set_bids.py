@@ -1,11 +1,69 @@
 """CLI tests for the set-bids command."""
 
+from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
+from hashbidder.client import BidItem, OrderBook
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.main import Clients, cli
-from tests.conftest import OTHER_UPSTREAM, UPSTREAM, FakeClient, make_user_bid
+from hashbidder.ocean_client import AccountStats, HashrateWindow, OceanTimeWindow
+from tests.conftest import (
+    EH_DAY,
+    OTHER_UPSTREAM,
+    UPSTREAM,
+    FakeClient,
+    FakeOceanSource,
+    make_user_bid,
+)
+
+_OCEAN_ADDRESS = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+
+TARGET_TOML = """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10
+max_bids_count = 3
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+"""
+
+
+def _ph_s(value: str) -> Hashrate:
+    return Hashrate(Decimal(value), HashUnit.PH, TimeUnit.SECOND)
+
+
+def _target_orderbook() -> OrderBook:
+    return OrderBook(
+        bids=(
+            BidItem(
+                price=HashratePrice(sats=Sats(800_000), per=EH_DAY),
+                amount_sat=Sats(100_000),
+                hr_matched_ph=_ph_s("3"),
+                speed_limit_ph=_ph_s("10"),
+            ),
+        ),
+        asks=(),
+    )
+
+
+def _account_stats(day_ph_s: str) -> AccountStats:
+    return AccountStats(
+        windows=(
+            HashrateWindow(window=OceanTimeWindow.DAY, hashrate=_ph_s(day_ph_s)),
+            HashrateWindow(window=OceanTimeWindow.THREE_HOURS, hashrate=_ph_s("0")),
+            HashrateWindow(window=OceanTimeWindow.TEN_MINUTES, hashrate=_ph_s("0")),
+            HashrateWindow(window=OceanTimeWindow.FIVE_MINUTES, hashrate=_ph_s("0")),
+            HashrateWindow(window=OceanTimeWindow.SIXTY_SECONDS, hashrate=_ph_s("0")),
+        ),
+    )
+
 
 TOML_HEADER = """\
 default_amount_sat = 100000
@@ -234,3 +292,97 @@ speed_limit_ph_s = 5.0
     final_bids = client.get_current_bids()
     assert len(final_bids) == 1
     assert final_bids[0].id != "B1"
+
+
+class TestTargetHashrateMode:
+    """CLI tests for target-hashrate mode dispatch."""
+
+    def test_dry_run(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Target mode dry-run prints inputs and plan without executing."""
+        config_file = tmp_path / "bids.toml"
+        config_file.write_text(TARGET_TOML)
+        monkeypatch.setenv("OCEAN_ADDRESS", _OCEAN_ADDRESS)
+
+        client = FakeClient(orderbook=_target_orderbook())
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["set-bids", "--bid-config", str(config_file), "--dry-run"],
+            obj=Clients(braiins=client, ocean=ocean),
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "=== Target Hashrate Inputs ===" in result.output
+        assert "Ocean 24h:" in result.output
+        assert "Needed:" in result.output
+        assert "801 sat/PH/Day" in result.output
+        assert result.output.count("CREATE:") == 3
+        # Dry run did not execute anything.
+        assert client.calls == []
+
+    def test_execute(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Target mode without --dry-run creates bids on the fake client."""
+        config_file = tmp_path / "bids.toml"
+        config_file.write_text(TARGET_TOML)
+        monkeypatch.setenv("OCEAN_ADDRESS", _OCEAN_ADDRESS)
+
+        client = FakeClient(orderbook=_target_orderbook())
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["set-bids", "--bid-config", str(config_file)],
+            obj=Clients(braiins=client, ocean=ocean),
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "=== Target Hashrate Inputs ===" in result.output
+        assert "3 succeeded, 0 failed" in result.output
+        assert len(client.get_current_bids()) == 3
+
+    def test_verbose_dry_run_prints_reasoning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`-v set-bids --dry-run` prints reasoning + cooldown sections."""
+        config_file = tmp_path / "bids.toml"
+        config_file.write_text(TARGET_TOML)
+        monkeypatch.setenv("OCEAN_ADDRESS", _OCEAN_ADDRESS)
+
+        client = FakeClient(orderbook=_target_orderbook())
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["-v", "set-bids", "--bid-config", str(config_file), "--dry-run"],
+            obj=Clients(braiins=client, ocean=ocean),
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "=== Target Hashrate Inputs ===" in result.output
+        assert "=== Reasoning ===" in result.output
+        assert "Price scan:" in result.output
+        assert "Needed math:" in result.output
+        assert "=== Cooldown Status ===" in result.output
+        assert "(no existing bids)" in result.output
+
+    def test_missing_ocean_address(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Target mode without OCEAN_ADDRESS errors out."""
+        config_file = tmp_path / "bids.toml"
+        config_file.write_text(TARGET_TOML)
+        monkeypatch.delenv("OCEAN_ADDRESS", raising=False)
+
+        client = FakeClient(orderbook=_target_orderbook())
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["set-bids", "--bid-config", str(config_file), "--dry-run"],
+            obj=Clients(braiins=client, ocean=ocean),
+            env={"OCEAN_ADDRESS": ""},
+        )
+
+        assert result.exit_code != 0
+        assert "OCEAN_ADDRESS" in result.output

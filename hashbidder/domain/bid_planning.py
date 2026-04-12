@@ -1,13 +1,14 @@
-"""Reconciliation logic: compare desired config against current bids."""
+"""Pure bid planning: diff a desired config against current bids."""
 
 from dataclasses import dataclass
 from enum import Enum
 
-from hashbidder.client import BidStatus, Upstream, UserBid
-from hashbidder.config import BidConfig, SetBidsConfig
+from hashbidder.domain.bid_config import BidConfig, SetBidsConfig
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.domain.upstream import Upstream
+from hashbidder.domain.user_bid import BidStatus, UserBid
 
 # Canonical units for price comparison.
 _PRICE_HASH_UNIT = HashUnit.PH
@@ -93,7 +94,7 @@ def _field_diff_count(bid: UserBid, config_entry: BidConfig) -> int:
     return diffs
 
 
-def reconcile(
+def plan_bid_changes(
     config: SetBidsConfig, current_bids: tuple[UserBid, ...]
 ) -> ReconciliationPlan:
     """Compute the minimal set of changes to reach the desired bid state.
