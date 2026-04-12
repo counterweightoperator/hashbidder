@@ -2,6 +2,8 @@
 
 from decimal import Decimal
 
+import httpx
+
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
@@ -36,7 +38,9 @@ class TestFormatHashvalueVerbose:
 
     def test_includes_all_components(self) -> None:
         """Verbose output includes all intermediate values."""
-        output = format_hashvalue_verbose(COMPONENTS, "https://mempool.example.com")
+        output = format_hashvalue_verbose(
+            COMPONENTS, httpx.URL("https://mempool.example.com")
+        )
 
         assert "67853502 sat/PH/Day" in output
         assert "840000" in output
