@@ -32,7 +32,7 @@ Braiins provides two API keys: a read only one and an owner one. If you want has
 
 ### Bid config file
 
-`set-bids` supports two modes: `manual` (default — declare exact bids) and `target-hashrate` (declare a target, let hashbidder plan bids against the live orderbook).
+`set-bids` command needs a TOML formatted config file. The command supports conig files for two modes: `manual` (declare exact bids) and `target-hashrate` (declare a target, let hashbidder plan bids against the live orderbook). You can find examples below. I recommend you start copying one of them and tinker from there.
 
 #### Manual mode
 
