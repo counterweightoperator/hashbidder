@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from hashbidder.client import BidItem, OrderBook
+from hashbidder.client import AccountBalance, BidItem, OrderBook
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
@@ -170,6 +170,39 @@ def test_without_dry_run_no_changes(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "No changes needed." in result.output
+
+
+def test_insufficient_balance_aborts_with_nonzero_exit(tmp_path: Path) -> None:
+    """An insufficient balance aborts execution and exits non-zero."""
+    config_file = tmp_path / "bids.toml"
+    config_file.write_text(
+        TOML_HEADER
+        + """\
+[[bids]]
+price_sat_per_ph_day = 500
+speed_limit_ph_s = 5.0
+"""
+    )
+
+    poor_balance = AccountBalance(
+        available_sat=Sats(10),
+        blocked_sat=Sats(0),
+        total_sat=Sats(10),
+    )
+    client = FakeClient(account_balance=poor_balance)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["set-bids", "--bid-config", str(config_file)], obj=Clients(braiins=client)
+    )
+
+    assert result.exit_code == 1
+    assert "INSUFFICIENT" in result.output
+    assert "Execution aborted" in result.output
+    # No mutations were issued.
+    mutations = [
+        c for c in client.calls if c[0] in ("create_bid", "edit_bid", "cancel_bid")
+    ]
+    assert mutations == []
 
 
 def test_execute_happy_path(tmp_path: Path) -> None:

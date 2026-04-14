@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from hashbidder import use_cases
 from hashbidder.client import API_BASE, ApiError, BraiinsClient, HashpowerClient
 from hashbidder.config import SetBidsConfig, TargetHashrateConfig, load_config
+from hashbidder.domain.balance_check import BalanceStatus
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
@@ -276,12 +277,19 @@ def set_bids(ctx: click.Context, bid_config: Path, dry_run: bool) -> None:
             click.echo(format_set_bids_target_result_verbose(target_result))
         else:
             click.echo(format_set_bids_target_result(target_result))
+        if (
+            target_result.set_bids_result.balance_check.status
+            == BalanceStatus.INSUFFICIENT
+        ):
+            ctx.exit(1)
         return
 
     assert isinstance(config, SetBidsConfig)
     with _api_errors():
         result = use_cases.set_bids(app.braiins, config, dry_run)
     click.echo(format_set_bids_result(result))
+    if result.balance_check.status == BalanceStatus.INSUFFICIENT:
+        ctx.exit(1)
 
 
 def main() -> None:
