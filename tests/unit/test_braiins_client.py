@@ -215,6 +215,108 @@ class TestGetMarketSettings:
         assert captured[0].headers["apikey"] == API_KEY
 
 
+class TestGetAccountBalance:
+    """Tests for BraiinsClient.get_account_balance parsing."""
+
+    def test_parses_single_account(self) -> None:
+        """A single-account response is parsed into AccountBalance."""
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(
+                200,
+                json={
+                    "accounts": [
+                        {
+                            "subaccount": "main",
+                            "currency": "BTC",
+                            "total_balance_sat": 1_500_000,
+                            "available_balance_sat": 1_200_000,
+                            "blocked_balance_sat": 300_000,
+                            "total_deposited_sat": 0,
+                            "total_withdrawn_sat": 0,
+                            "total_spot_spent_sat": 0,
+                            "total_spot_revenue_gross_sat": 0,
+                            "total_spot_revenue_net_sat": 0,
+                            "total_spent_spot_buy_fees_sat": 0,
+                            "total_spent_spot_sell_fees_sat": 0,
+                            "total_spent_fees_sat": 0,
+                            "has_pending_withdrawal": False,
+                        }
+                    ]
+                },
+            )
+
+        client = _make_client(httpx.MockTransport(handler))
+        balance = client.get_account_balance()
+
+        assert int(balance.available_sat) == 1_200_000
+        assert int(balance.blocked_sat) == 300_000
+        assert int(balance.total_sat) == 1_500_000
+        assert captured[0].method == "GET"
+        assert captured[0].url.path.endswith("/account/balance")
+        assert captured[0].headers["apikey"] == API_KEY
+
+    def test_empty_accounts_raises(self) -> None:
+        """Zero accounts in the response raises ValueError."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"accounts": []})
+
+        client = _make_client(httpx.MockTransport(handler))
+        with pytest.raises(ValueError, match="exactly one account"):
+            client.get_account_balance()
+
+    def test_multiple_accounts_raises(self) -> None:
+        """More than one account in the response raises ValueError."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "accounts": [
+                        {
+                            "subaccount": "a",
+                            "currency": "BTC",
+                            "total_balance_sat": 1,
+                            "available_balance_sat": 1,
+                            "blocked_balance_sat": 0,
+                            "total_deposited_sat": 0,
+                            "total_withdrawn_sat": 0,
+                            "total_spot_spent_sat": 0,
+                            "total_spot_revenue_gross_sat": 0,
+                            "total_spot_revenue_net_sat": 0,
+                            "total_spent_spot_buy_fees_sat": 0,
+                            "total_spent_spot_sell_fees_sat": 0,
+                            "total_spent_fees_sat": 0,
+                            "has_pending_withdrawal": False,
+                        },
+                        {
+                            "subaccount": "b",
+                            "currency": "BTC",
+                            "total_balance_sat": 2,
+                            "available_balance_sat": 2,
+                            "blocked_balance_sat": 0,
+                            "total_deposited_sat": 0,
+                            "total_withdrawn_sat": 0,
+                            "total_spot_spent_sat": 0,
+                            "total_spot_revenue_gross_sat": 0,
+                            "total_spot_revenue_net_sat": 0,
+                            "total_spent_spot_buy_fees_sat": 0,
+                            "total_spent_spot_sell_fees_sat": 0,
+                            "total_spent_fees_sat": 0,
+                            "has_pending_withdrawal": False,
+                        },
+                    ]
+                },
+            )
+
+        client = _make_client(httpx.MockTransport(handler))
+        with pytest.raises(ValueError, match="exactly one account"):
+            client.get_account_balance()
+
+
 class TestApiErrorParsing:
     """Tests for error response handling."""
 
