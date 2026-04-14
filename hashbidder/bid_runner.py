@@ -29,6 +29,10 @@ from hashbidder.domain.bid_planning import (
     plan_bid_changes,
 )
 
+# Braiins caches `/spot/bid/current` briefly after mutations, so an immediate
+# refetch returns stale state. Wait before reading back the final bids.
+POST_EXECUTE_REFETCH_DELAY_SECONDS = 3.0
+
 
 @dataclass(frozen=True)
 class SetBidsResult:
@@ -216,5 +220,7 @@ def execute_plan(
             continue
         _execute_with_retries(client, create, outcomes, sleep)
 
+    if plan.cancels or plan.edits or plan.creates:
+        sleep(POST_EXECUTE_REFETCH_DELAY_SECONDS)
     final_bids = client.get_current_bids()
     return ExecutionResult(outcomes=tuple(outcomes), final_bids=final_bids)

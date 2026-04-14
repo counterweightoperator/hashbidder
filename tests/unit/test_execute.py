@@ -1,6 +1,10 @@
 """Tests for the execution engine: retries, failures, atomic pairs."""
 
-from hashbidder.bid_runner import ActionStatus, execute_plan
+from hashbidder.bid_runner import (
+    POST_EXECUTE_REFETCH_DELAY_SECONDS,
+    ActionStatus,
+    execute_plan,
+)
 from hashbidder.client import (
     ApiError,
     ClOrderId,
@@ -248,3 +252,34 @@ class TestResultsSummary:
         assert succeeded >= 1
         assert failed >= 1
         assert skipped >= 1
+
+
+class TestRefetchDelay:
+    """Braiins caches bid state briefly after mutations; we sleep before refetch."""
+
+    def test_sleeps_before_refetch_when_plan_has_actions(self) -> None:
+        """Non-empty plan triggers a pre-refetch sleep."""
+        bid = make_user_bid("B1", 500, "5.0", upstream=OTHER_UPSTREAM)
+        client = FakeClient(current_bids=(bid,))
+        config = make_config(upstream=UPSTREAM)
+        plan = plan_bid_changes(config, client.get_current_bids())
+        assert plan.cancels  # sanity: plan is non-empty
+
+        sleeps: list[float] = []
+        execute_plan(client, plan, sleep=sleeps.append)
+
+        assert POST_EXECUTE_REFETCH_DELAY_SECONDS in sleeps
+
+    def test_no_sleep_when_plan_is_empty(self) -> None:
+        """Empty plan skips the pre-refetch sleep."""
+        client = FakeClient(current_bids=())
+        config = make_config(upstream=UPSTREAM)
+        plan = plan_bid_changes(config, client.get_current_bids())
+        assert not plan.cancels
+        assert not plan.edits
+        assert not plan.creates
+
+        sleeps: list[float] = []
+        execute_plan(client, plan, sleep=sleeps.append)
+
+        assert sleeps == []
