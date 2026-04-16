@@ -13,9 +13,11 @@ from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.domain.upstream import Upstream
+from hashbidder.strategies import BiddingStrategyKind
 
 __all__ = [
     "BidConfig",
+    "BiddingStrategyKind",
     "ConfigMode",
     "SetBidsConfig",
     "TargetHashrateConfig",
@@ -38,6 +40,7 @@ class TargetHashrateConfig:
     upstream: Upstream
     target_hashrate: Hashrate
     max_bids_count: int
+    strategy: BiddingStrategyKind = BiddingStrategyKind.NAIVE
 
 
 def load_config(path: Path) -> SetBidsConfig | TargetHashrateConfig:
@@ -163,9 +166,22 @@ def _parse_target_hashrate(
     if max_bids_count < 1:
         raise ValueError("max_bids_count must be >= 1")
 
+    strategy_raw = data.get("bidding_strategy")
+    if strategy_raw is None:
+        strategy = BiddingStrategyKind.NAIVE
+    else:
+        try:
+            strategy = BiddingStrategyKind(strategy_raw)
+        except ValueError as e:
+            valid = ", ".join(repr(s.value) for s in BiddingStrategyKind)
+            raise ValueError(
+                f"Invalid bidding_strategy {strategy_raw!r}: must be one of {valid}"
+            ) from e
+
     return TargetHashrateConfig(
         default_amount=default_amount,
         upstream=upstream,
         target_hashrate=Hashrate(target_raw, HashUnit.PH, TimeUnit.SECOND),
         max_bids_count=max_bids_count,
+        strategy=strategy,
     )

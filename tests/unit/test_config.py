@@ -8,7 +8,12 @@ import pytest
 from hypothesis import given, settings, strategies
 from hypothesis.strategies import DrawFn, composite
 
-from hashbidder.config import SetBidsConfig, TargetHashrateConfig, load_config
+from hashbidder.config import (
+    BiddingStrategyKind,
+    SetBidsConfig,
+    TargetHashrateConfig,
+    load_config,
+)
 from hashbidder.domain.hashrate import Hashrate, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
@@ -481,6 +486,64 @@ identity = "worker1"
 """,
         )
         with pytest.raises(ValueError, match="max_bids_count must be >= 1"):
+            load_config(path)
+
+    def test_target_hashrate_defaults_strategy_to_naive(self, tmp_path: Path) -> None:
+        """Omitting bidding_strategy keeps the naive default."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10.0
+max_bids_count = 3
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        config = load_config(path)
+        assert isinstance(config, TargetHashrateConfig)
+        assert config.strategy is BiddingStrategyKind.NAIVE
+
+    def test_target_hashrate_accepts_naive_strategy(self, tmp_path: Path) -> None:
+        """bidding_strategy = "naive" parses to BiddingStrategyKind.NAIVE."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10.0
+max_bids_count = 3
+bidding_strategy = "naive"
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        config = load_config(path)
+        assert isinstance(config, TargetHashrateConfig)
+        assert config.strategy is BiddingStrategyKind.NAIVE
+
+    def test_target_hashrate_rejects_unknown_strategy(self, tmp_path: Path) -> None:
+        """An unknown bidding_strategy value raises ValueError listing valid ones."""
+        path = _write_toml(
+            tmp_path,
+            """\
+mode = "target-hashrate"
+default_amount_sat = 100000
+target_hashrate_ph_s = 10.0
+max_bids_count = 3
+bidding_strategy = "nonsense"
+
+[upstream]
+url = "stratum+tcp://pool.example.com:3333"
+identity = "worker1"
+""",
+        )
+        with pytest.raises(ValueError, match=r"Invalid bidding_strategy.*'naive'"):
             load_config(path)
 
     def test_invalid_mode(self, tmp_path: Path) -> None:
