@@ -14,7 +14,7 @@ from hashbidder.client import (
     MarketSettings,
     OrderBook,
 )
-from hashbidder.config import TargetHashrateConfig
+from hashbidder.config import BiddingStrategyKind, TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick
@@ -58,12 +58,17 @@ def _orderbook(served_price_sat: int) -> OrderBook:
     )
 
 
-def _config(target_ph_s: str, max_bids_count: int = 3) -> TargetHashrateConfig:
+def _config(
+    target_ph_s: str,
+    max_bids_count: int = 3,
+    strategy: BiddingStrategyKind = BiddingStrategyKind.NAIVE,
+) -> TargetHashrateConfig:
     return TargetHashrateConfig(
         default_amount=Sats(100_000),
         upstream=UPSTREAM,
         target_hashrate=_ph_s(target_ph_s),
         max_bids_count=max_bids_count,
+        strategy=strategy,
     )
 
 
@@ -258,6 +263,51 @@ class TestSetBidsTarget:
         assert plan.edits == ()
         assert plan.creates == ()
         assert plan.cancels == ()
+
+    def test_dispatches_to_configured_strategy(self) -> None:
+        """The use case honors config.strategy.
+
+        Scenario: a fully-frozen 10 PH/s bid at 3x the market price, target 5 PH/s,
+        current 24h 5 PH/s → needed 5 PH/s, max_bids_count=1.
+
+          - naive plan: speed-locked + price-locked → keeps (high_price, 10 PH/s),
+            reconciler marks the bid unchanged.
+          - buckets plan: min_total=10 > target=5 → cancels the bid then creates a
+            single (target_price, 5 PH/s) slot; reconciler edits the bid to those
+            new values.
+
+        Observing the edit's new_price equal to the market price confirms the
+        dispatcher picked the bucket strategy.
+        """
+        now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
+        frozen_overpriced = make_user_bid(
+            "B1", 1_500_000, "10", last_updated=now - timedelta(seconds=10)
+        )
+        client = FakeClient(
+            orderbook=_orderbook(served_price_sat=500_000),
+            current_bids=(frozen_overpriced,),
+        )
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+
+        result = set_bids_target(
+            client,
+            ocean,
+            ADDRESS,
+            _config(
+                "5",
+                max_bids_count=1,
+                strategy=BiddingStrategyKind.PRIORITIZED_BUCKETS,
+            ),
+            dry_run=True,
+            now=now,
+        )
+
+        plan = result.set_bids_result.plan
+        assert len(plan.edits) == 1
+        assert plan.edits[0].bid is frozen_overpriced
+        assert plan.edits[0].new_price.sats == Sats(501_000)
+        assert plan.edits[0].new_speed_limit_ph == _ph_s("5")
+        assert plan.unchanged == ()
 
     def test_missing_24h_window_raises(self) -> None:
         """Ocean stats without a 24h window raises ValueError."""

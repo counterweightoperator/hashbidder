@@ -5,6 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from hashbidder.client import MarketSettings, OrderBook, UserBid
+from hashbidder.domain.bid_config import MIN_BID_SPEED
 from hashbidder.domain.bid_history import BidHistory
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick
@@ -38,7 +39,7 @@ def distribute_bids(needed: Hashrate, max_bids_count: int) -> tuple[Hashrate, ..
     if needed_ph < Decimal("0.5"):
         return ()
     if needed_ph < 1:
-        return (Hashrate(Decimal(1), HashUnit.PH, TimeUnit.SECOND),)
+        return (MIN_BID_SPEED,)
 
     n = min(max_bids_count, int(needed_ph))
     share = (needed_ph / Decimal(n)).quantize(Decimal("0.01"))
