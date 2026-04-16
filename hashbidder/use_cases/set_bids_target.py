@@ -9,6 +9,7 @@ from hashbidder.config import SetBidsConfig, TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice
 from hashbidder.ocean_client import OceanSource, OceanTimeWindow
+from hashbidder.strategies import BiddingStrategyKind, resolve_strategy
 from hashbidder.target_hashrate import (
     BidWithCooldown,
     CooldownInfo,
@@ -17,7 +18,6 @@ from hashbidder.target_hashrate import (
     find_market_price,
     is_price_guaranteed_free,
     is_speed_guaranteed_free,
-    plan_with_cooldowns,
 )
 
 
@@ -121,9 +121,10 @@ def set_bids_target(
 
     current_bids = client.get_current_bids()
     annotated = resolve_cooldowns(current_bids, settings, now, client)
-    bids = plan_with_cooldowns(
-        desired_price=price,
-        needed=needed,
+    strategy = resolve_strategy(BiddingStrategyKind.NAIVE)
+    bids = strategy(
+        target_price=price,
+        target_hashrate=needed,
         max_bids_count=config.max_bids_count,
         bids=annotated,
     )

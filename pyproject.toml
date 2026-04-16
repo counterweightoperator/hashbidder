@@ -63,6 +63,7 @@ modules = [
 
 [tool.mypy]
 strict = true
+exclude = ["improved_bids/", "notes/"]
 
 [build-system]
 requires = ["hatchling"]

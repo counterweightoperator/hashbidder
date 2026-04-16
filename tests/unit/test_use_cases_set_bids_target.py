@@ -149,7 +149,7 @@ class TestSetBidsTarget:
         # B1 is matched: edit if its price differs from desired, else unchanged.
         # Desired price = 500_001 sat/EH/Day = 500.001 sat/PH/Day, current is
         # 800 sat/PH/Day = 800_000 sat/EH/Day. Price cooldown is also active,
-        # so plan_with_cooldowns leaves the price untouched at 800.
+        # so the naive strategy leaves the price untouched at 800.
         assert len(plan.unchanged) == 1
         assert plan.unchanged[0].bid is cooldown_bid
         # Two new creates at 6 PH/s each (12 / 2).
