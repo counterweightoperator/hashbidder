@@ -5,7 +5,15 @@ from decimal import Decimal
 
 import pytest
 
-from hashbidder.client import BidItem, MarketSettings, OrderBook
+from hashbidder.client import (
+    ApiError,
+    BidHistory,
+    BidHistoryEntry,
+    BidId,
+    BidItem,
+    MarketSettings,
+    OrderBook,
+)
 from hashbidder.config import TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
@@ -263,3 +271,127 @@ class TestSetBidsTarget:
 
         with pytest.raises(ValueError, match="24h window"):
             set_bids_target(client, ocean, ADDRESS, _config("10"), dry_run=True)
+
+
+_DETAIL_SETTINGS = MarketSettings(
+    min_bid_price_decrease_period=timedelta(seconds=600),
+    min_bid_speed_limit_decrease_period=timedelta(seconds=600),
+    price_tick=PriceTick(sats=Sats(1000)),
+)
+
+
+def _history(entries: tuple[BidHistoryEntry, ...]) -> BidHistory:
+    return BidHistory(entries=entries)
+
+
+def _entry(t: datetime, price_sat_per_eh_day: int, speed: str) -> BidHistoryEntry:
+    return BidHistoryEntry(
+        timestamp=t,
+        price=HashratePrice(sats=Sats(price_sat_per_eh_day), per=EH_DAY),
+        speed_limit_ph=_ph_s(speed),
+    )
+
+
+def _detail_call_count(client: FakeClient) -> int:
+    return sum(1 for call in client.calls if call[0] == "get_bid_detail")
+
+
+class TestHistoryFetchWiring:
+    """Tests for the tier-1 / tier-2 wiring inside set_bids_target."""
+
+    def test_not_in_cooldown_bids_incur_zero_history_fetches(self) -> None:
+        """All bids past both decrease windows → no /spot/bid/detail calls."""
+        now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
+        old = now - timedelta(seconds=3600)
+        bids = (
+            make_user_bid("B1", 600, "2.0", last_updated=old),
+            make_user_bid("B2", 700, "3.0", last_updated=old),
+        )
+        client = FakeClient(
+            orderbook=_orderbook(served_price_sat=500_000),
+            current_bids=bids,
+            market_settings=_DETAIL_SETTINGS,
+        )
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+
+        set_bids_target(client, ocean, ADDRESS, _config("10"), dry_run=True, now=now)
+
+        assert _detail_call_count(client) == 0
+
+    def test_recent_increase_only_history_clears_both_flags(self) -> None:
+        """Tier-1 ambiguous + history shows only an increase → bid is free."""
+        now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
+        bid = make_user_bid("B1", 501, "3.0", last_updated=now - timedelta(seconds=30))
+        # Price and speed strictly increased — nothing to cool for.
+        history = _history(
+            (
+                _entry(now - timedelta(seconds=3600), 400_000, "2"),
+                _entry(now - timedelta(seconds=60), 501_000, "3"),
+            )
+        )
+        client = FakeClient(
+            orderbook=_orderbook(served_price_sat=500_000),
+            current_bids=(bid,),
+            market_settings=_DETAIL_SETTINGS,
+            bid_histories={BidId("B1"): history},
+        )
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+
+        result = set_bids_target(
+            client, ocean, ADDRESS, _config("10"), dry_run=True, now=now
+        )
+
+        assert _detail_call_count(client) == 1
+        (annotated,) = result.inputs.annotated_bids
+        assert annotated.cooldown.price_cooldown is False
+        assert annotated.cooldown.speed_cooldown is False
+
+    def test_recent_speed_decrease_sets_speed_cooldown_only(self) -> None:
+        """Tier-1 ambiguous + history shows a speed decrease → speed locked only."""
+        now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
+        bid = make_user_bid("B1", 501, "3.0", last_updated=now - timedelta(seconds=30))
+        history = _history(
+            (
+                _entry(now - timedelta(seconds=3600), 501_000, "6"),
+                _entry(now - timedelta(seconds=60), 501_000, "3"),
+            )
+        )
+        client = FakeClient(
+            orderbook=_orderbook(served_price_sat=500_000),
+            current_bids=(bid,),
+            market_settings=_DETAIL_SETTINGS,
+            bid_histories={BidId("B1"): history},
+        )
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+
+        result = set_bids_target(
+            client, ocean, ADDRESS, _config("10"), dry_run=True, now=now
+        )
+
+        assert _detail_call_count(client) == 1
+        (annotated,) = result.inputs.annotated_bids
+        assert annotated.cooldown.speed_cooldown is True
+        assert annotated.cooldown.price_cooldown is False
+
+    def test_api_error_on_detail_falls_back_to_tier1(self) -> None:
+        """History fetch failure → conservative tier-1 flags, no crash."""
+        now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
+        bid = make_user_bid("B1", 501, "3.0", last_updated=now - timedelta(seconds=30))
+        client = FakeClient(
+            orderbook=_orderbook(served_price_sat=500_000),
+            current_bids=(bid,),
+            market_settings=_DETAIL_SETTINGS,
+            # No seeded history → get_bid_detail raises ApiError 404.
+            errors={("get_bid_detail", "B1"): [ApiError(500, "boom")]},
+        )
+        ocean = FakeOceanSource(account_stats=_account_stats("5"))
+
+        result = set_bids_target(
+            client, ocean, ADDRESS, _config("10"), dry_run=True, now=now
+        )
+
+        assert _detail_call_count(client) == 1
+        (annotated,) = result.inputs.annotated_bids
+        # Conservative fallback: bid is within both decrease windows → both True.
+        assert annotated.cooldown.price_cooldown is True
+        assert annotated.cooldown.speed_cooldown is True

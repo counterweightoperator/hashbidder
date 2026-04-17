@@ -301,7 +301,7 @@ _SPLIT_SETTINGS = MarketSettings(
 class TestIsPriceGuaranteedFree:
     """Tests for is_price_guaranteed_free — tier-1 boolean for the price field."""
 
-    def test_quiescent_bid_is_free(self) -> None:
+    def test_not_in_cooldown_bid_is_free(self) -> None:
         """Untouched for longer than the price window → provably past cooldown."""
         bid = make_user_bid(
             "B1", 500, "5.0", last_updated=_NOW - timedelta(seconds=3600)
@@ -331,7 +331,7 @@ class TestIsPriceGuaranteedFree:
 class TestIsSpeedGuaranteedFree:
     """Tests for is_speed_guaranteed_free — tier-1 boolean for the speed field."""
 
-    def test_quiescent_bid_is_free(self) -> None:
+    def test_not_in_cooldown_bid_is_free(self) -> None:
         """Untouched for longer than the speed window → provably past cooldown."""
         bid = make_user_bid(
             "B1", 500, "5.0", last_updated=_NOW - timedelta(seconds=3600)
