@@ -425,34 +425,64 @@ class TestFormatTargetHashrateVerbose:
         assert "=== Cooldown Status ===" in output
         assert "(no existing bids)" in output
 
-    def test_mixed_cooldowns(self) -> None:
-        """Each cooldown combination renders a distinct status label."""
+    def _annotated_one(
+        self,
+        bid_id: str,
+        price_sats: int,
+        speed: str,
+        *,
+        price_cooldown: bool,
+        speed_cooldown: bool,
+    ) -> tuple[BidWithCooldown, ...]:
         now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=UTC)
-        b_free = make_user_bid("B1", 700, "1.0", last_updated=now - timedelta(days=1))
-        b_price = make_user_bid("B2", 800, "2.0", last_updated=now)
-        b_speed = make_user_bid("B3", 900, "3.0", last_updated=now)
-        b_both = make_user_bid("B4", 950, "4.0", last_updated=now)
-        annotated = (
+        bid = make_user_bid(bid_id, price_sats, speed, last_updated=now)
+        return (
             BidWithCooldown(
-                bid=b_free,
-                cooldown=CooldownInfo(price_cooldown=False, speed_cooldown=False),
+                bid=bid,
+                cooldown=CooldownInfo(
+                    price_cooldown=price_cooldown,
+                    speed_cooldown=speed_cooldown,
+                ),
             ),
-            BidWithCooldown(
-                bid=b_price,
-                cooldown=CooldownInfo(price_cooldown=True, speed_cooldown=False),
-            ),
-            BidWithCooldown(
-                bid=b_speed,
-                cooldown=CooldownInfo(price_cooldown=False, speed_cooldown=True),
-            ),
-            BidWithCooldown(
-                bid=b_both,
-                cooldown=CooldownInfo(price_cooldown=True, speed_cooldown=True),
-            ),
+        )
+
+    def test_both_free_renders_free(self) -> None:
+        """price=False, speed=False → `→ free`."""
+        annotated = self._annotated_one(
+            "B1", 700, "1.0", price_cooldown=False, speed_cooldown=False
         )
         output = format_set_bids_target_result_verbose(self._result(annotated))
         assert "B1  price=700 sat/PH/Day  limit=1 PH/Second  → free" in output
-        assert "B2  price=800 sat/PH/Day  limit=2 PH/Second  → price locked" in output
-        assert "B3" in output
-        assert "→ speed locked (price free)" in output
-        assert "B4  price=950 sat/PH/Day  limit=4 PH/Second  → price+speed" in output
+
+    def test_price_locked_only(self) -> None:
+        """price=True, speed=False → `→ price locked (speed free)`."""
+        annotated = self._annotated_one(
+            "B2", 800, "2.0", price_cooldown=True, speed_cooldown=False
+        )
+        output = format_set_bids_target_result_verbose(self._result(annotated))
+        assert (
+            "B2  price=800 sat/PH/Day  limit=2 PH/Second  → price locked (speed free)"
+            in output
+        )
+
+    def test_speed_locked_only(self) -> None:
+        """price=False, speed=True → `→ speed locked (price free)`."""
+        annotated = self._annotated_one(
+            "B3", 900, "3.0", price_cooldown=False, speed_cooldown=True
+        )
+        output = format_set_bids_target_result_verbose(self._result(annotated))
+        assert (
+            "B3  price=900 sat/PH/Day  limit=3 PH/Second  → speed locked (price free)"
+            in output
+        )
+
+    def test_both_locked(self) -> None:
+        """price=True, speed=True → `→ price+speed locked`."""
+        annotated = self._annotated_one(
+            "B4", 950, "4.0", price_cooldown=True, speed_cooldown=True
+        )
+        output = format_set_bids_target_result_verbose(self._result(annotated))
+        assert (
+            "B4  price=950 sat/PH/Day  limit=4 PH/Second  → price+speed locked"
+            in output
+        )

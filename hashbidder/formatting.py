@@ -27,6 +27,7 @@ from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.hashvalue import HashvalueComponents
 from hashbidder.ocean_client import AccountStats
+from hashbidder.target_hashrate import BidWithCooldown
 from hashbidder.use_cases import SetBidsTargetResult
 
 
@@ -430,7 +431,7 @@ def _format_target_distribution_math(
     return "\n".join(lines)
 
 
-def _format_target_cooldowns(annotated: tuple) -> str:  # type: ignore[type-arg]
+def _format_target_cooldowns(annotated: tuple[BidWithCooldown, ...]) -> str:
     lines = ["=== Cooldown Status ==="]
     if not annotated:
         lines.append("  (no existing bids)")
