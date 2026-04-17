@@ -20,6 +20,8 @@ from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 
+EH_DAY = Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY)
+
 API_KEY = "test-api-key"
 BASE_URL = httpx.URL("http://test-api")
 
@@ -315,6 +317,82 @@ class TestGetAccountBalance:
         client = _make_client(httpx.MockTransport(handler))
         with pytest.raises(ValueError, match="exactly one account"):
             client.get_account_balance()
+
+
+class TestGetBidDetail:
+    """Tests for BraiinsClient.get_bid_detail parsing."""
+
+    @staticmethod
+    def _detail_response_body() -> dict[str, object]:
+        return {
+            "history": [
+                {
+                    "timestamp": "2026-04-15T09:00:00+00:00",
+                    "speed_limit_ph": 10.0,
+                    "price_sat": 600_000,
+                    "amount": 100_000,
+                    "status": "BID_STATUS_ACTIVE",
+                    "remark": "",
+                    "updated_by": {},
+                },
+                {
+                    "timestamp": "2026-04-16T09:00:00+00:00",
+                    "speed_limit_ph": 8.0,
+                    "price_sat": 500_000,
+                    "amount": 100_000,
+                    "status": "BID_STATUS_ACTIVE",
+                    "remark": "",
+                    "updated_by": {},
+                },
+            ]
+        }
+
+    def test_parses_history_entries(self) -> None:
+        """Each history entry becomes a BidHistoryEntry with matching units."""
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, json=self._detail_response_body())
+
+        client = _make_client(httpx.MockTransport(handler))
+        entries = client.get_bid_detail(BidId("B42"))
+
+        assert captured[0].method == "GET"
+        assert captured[0].url.path.endswith("/spot/bid/detail/B42")
+        assert captured[0].headers["apikey"] == API_KEY
+
+        assert len(entries) == 2
+        assert entries[0].timestamp == datetime(2026, 4, 15, 9, 0, tzinfo=UTC)
+        assert entries[0].price == HashratePrice(sats=Sats(600_000), per=EH_DAY)
+        assert entries[0].speed_limit_ph == Hashrate(
+            Decimal("10.0"), HashUnit.PH, TimeUnit.SECOND
+        )
+        assert entries[1].timestamp == datetime(2026, 4, 16, 9, 0, tzinfo=UTC)
+        assert entries[1].price == HashratePrice(sats=Sats(500_000), per=EH_DAY)
+        assert entries[1].speed_limit_ph == Hashrate(
+            Decimal("8.0"), HashUnit.PH, TimeUnit.SECOND
+        )
+
+    def test_empty_history(self) -> None:
+        """A response with no history entries yields an empty tuple."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"history": []})
+
+        client = _make_client(httpx.MockTransport(handler))
+        assert client.get_bid_detail(BidId("B42")) == ()
+
+    def test_404_raises_api_error(self) -> None:
+        """An unknown bid id surfaces as ApiError 404."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(404, text="Bid not found")
+
+        client = _make_client(httpx.MockTransport(handler))
+        with pytest.raises(ApiError) as exc_info:
+            client.get_bid_detail(BidId("B999"))
+        assert exc_info.value.status_code == 404
 
 
 class TestApiErrorParsing:

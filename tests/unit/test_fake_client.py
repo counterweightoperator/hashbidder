@@ -1,10 +1,21 @@
 """Tests for the stateful FakeClient test double."""
 
+from datetime import UTC, datetime
+from decimal import Decimal
+
 import pytest
 
-from hashbidder.client import ApiError, BidId, BidStatus, ClOrderId
+from hashbidder.client import ApiError, BidHistoryEntry, BidId, BidStatus, ClOrderId
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
-from tests.conftest import UPSTREAM, FakeClient, make_bid_config, make_user_bid
+from hashbidder.domain.time_unit import TimeUnit
+from tests.conftest import (
+    EH_DAY,
+    UPSTREAM,
+    FakeClient,
+    make_bid_config,
+    make_user_bid,
+)
 
 
 class TestFakeClientCancel:
@@ -109,3 +120,26 @@ class TestFakeClientErrorInjection:
         client.cancel_bid(BidId("B1"))
 
         assert client.calls == [("edit_bid", "B1"), ("cancel_bid", "B1")]
+
+
+class TestFakeClientGetBidDetail:
+    """Tests for FakeClient.get_bid_detail."""
+
+    def test_returns_seeded_history(self) -> None:
+        """Seeded history is returned for the matching bid id."""
+        history = (
+            BidHistoryEntry(
+                timestamp=datetime(2026, 4, 15, tzinfo=UTC),
+                price=HashratePrice(sats=Sats(500_000), per=EH_DAY),
+                speed_limit_ph=Hashrate(Decimal("5.0"), HashUnit.PH, TimeUnit.SECOND),
+            ),
+        )
+        client = FakeClient(bid_histories={BidId("B1"): history})
+
+        assert client.get_bid_detail(BidId("B1")) == history
+
+    def test_unknown_id_raises_404(self) -> None:
+        """An id with no seeded history raises ApiError 404."""
+        client = FakeClient()
+        with pytest.raises(ApiError, match="not found"):
+            client.get_bid_detail(BidId("B999"))

@@ -6,6 +6,7 @@ from decimal import Decimal
 from hashbidder.client import (
     AccountBalance,
     ApiError,
+    BidHistoryEntry,
     BidId,
     BidStatus,
     ClOrderId,
@@ -126,6 +127,7 @@ class FakeClient:
         errors: dict[tuple[str, str], list[ApiError]] | None = None,
         market_settings: MarketSettings = DEFAULT_MARKET_SETTINGS,
         account_balance: AccountBalance = DEFAULT_ACCOUNT_BALANCE,
+        bid_histories: dict[BidId, tuple[BidHistoryEntry, ...]] | None = None,
     ) -> None:
         """Initialize with optional canned data and error injection."""
         self._orderbook = orderbook or OrderBook(bids=(), asks=())
@@ -134,6 +136,7 @@ class FakeClient:
         self._errors = errors or {}
         self._market_settings = market_settings
         self._account_balance = account_balance
+        self._bid_histories = dict(bid_histories or {})
         self.calls: list[tuple[str, ...]] = []
 
     def get_market_settings(self) -> MarketSettings:
@@ -219,6 +222,14 @@ class FakeClient:
                 del self._bids[i]
                 return
         raise ApiError(404, f"Bid {order_id} not found")
+
+    def get_bid_detail(self, bid_id: BidId) -> tuple[BidHistoryEntry, ...]:
+        """Return seeded history for a bid, or raise ApiError 404."""
+        self.calls.append(("get_bid_detail", bid_id))
+        self._maybe_raise("get_bid_detail", bid_id)
+        if bid_id not in self._bid_histories:
+            raise ApiError(404, f"Bid {bid_id} not found")
+        return self._bid_histories[bid_id]
 
 
 class FakeMempoolSource:
