@@ -1,14 +1,16 @@
 .PHONY: format lint typecheck imports test check
 
+DIRS := hashbidder tests
+
 format:
-	uv run ruff format .
-	uv run ruff check --select I --fix .
+	uv run ruff format $(DIRS)
+	uv run ruff check --select I --fix $(DIRS)
 
 lint:
-	uv run ruff check .
+	uv run ruff check $(DIRS)
 
 typecheck:
-	uv run mypy .
+	uv run mypy $(DIRS)
 
 imports:
 	uv run lint-imports
