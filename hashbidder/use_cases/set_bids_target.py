@@ -127,8 +127,6 @@ def set_bids_target(
         max_bids_count=config.max_bids_count,
         bids=annotated,
     )
-    for entry in bids:
-        settings.price_tick.assert_aligned(entry.price)
 
     computed = SetBidsConfig(
         default_amount=config.default_amount,
