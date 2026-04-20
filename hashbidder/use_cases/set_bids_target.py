@@ -51,7 +51,7 @@ def resolve_cooldowns(
     now: datetime,
     client: HashpowerClient,
 ) -> tuple[BidWithCooldown, ...]:
-    """Per-bid cooldown annotation via a cheap tier-1 check, then tier-2 history.
+    """Per-bid cooldown annotation.
 
     Call ``get_bid_history`` and derive the authoritative answer from the bid's
     history. If the history fetch raises an ``ApiError``, fall back to a per-field
