@@ -148,7 +148,10 @@ def set_bids_target(
         max_bids_count=config.max_bids_count,
         annotated_bids=bids_with_cooldowns,
     )
+
+    set_bids_result = reconcile(client, computed, dry_run)
+
     return SetBidsTargetResult(
         inputs=inputs,
-        set_bids_result=reconcile(client, computed, dry_run),
+        set_bids_result=set_bids_result,
     )
