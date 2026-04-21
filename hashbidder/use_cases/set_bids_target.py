@@ -244,14 +244,14 @@ def set_bids_target(
     if dry_run:
         set_bids_result = SetBidsResult(
             plan=plan,
-            skipped_bids=skipped_bids,
+            skipped_bids=(),
             balance_check=balance_check,
         )
     else:
         execution = execute_plan(client, plan)
         set_bids_result = SetBidsResult(
             plan=plan,
-            skipped_bids=skipped_bids,
+            skipped_bids=(),
             balance_check=balance_check,
             execution=execution,
         )
