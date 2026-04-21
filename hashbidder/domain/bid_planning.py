@@ -22,6 +22,7 @@ class CancelReason(Enum):
 
     UNMATCHED = "no matching config entry"
     UPSTREAM_MISMATCH = "upstream mismatch (cannot edit upstream)"
+    TOO_MANY_BIDS = "too many bids open, we want fewer"
 
 
 @dataclass(frozen=True)
