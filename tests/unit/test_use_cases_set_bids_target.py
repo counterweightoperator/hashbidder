@@ -112,13 +112,13 @@ class TestSetBidsTarget:
 
     def test_low_needed_single_bid(self) -> None:
         """Needed rounds up to a single 1 PH/s bid when below 1 PH/s."""
-        # target=10, current=19.4 → needed=0.6 → single 1 PH/s bid
+        # target=10, current=19.4 → needed=1 → single 1 PH/s bid
         client = FakeClient(orderbook=_orderbook(served_price_sat=500_000))
         ocean = FakeOceanSource(account_stats=_account_stats("19.4"))
 
         result = set_bids_target(client, ocean, ADDRESS, _config("10"), dry_run=True)
 
-        assert result.inputs.needed == _ph_s("0.6")
+        assert result.inputs.needed == _ph_s("1")
         creates = result.set_bids_result.plan.creates
         assert len(creates) == 1
         assert creates[0].config.speed_limit == _ph_s("1")
