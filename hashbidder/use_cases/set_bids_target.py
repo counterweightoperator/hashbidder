@@ -34,7 +34,6 @@ class TargetHashrateInputs:
     target: Hashrate
     needed: Hashrate
     price: HashratePrice
-    max_bids_count: int
     bids_with_cooldowns: tuple[BidWithCooldown, ...]
 
 
@@ -252,7 +251,6 @@ def set_bids_target(
         target=config.target_hashrate,
         needed=total_hashrate_to_set,
         price=price_to_set_bids_to,
-        max_bids_count=config.max_bids_count,
         bids_with_cooldowns=bids_with_cooldowns,
     )
 
