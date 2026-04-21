@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from hashbidder.bid_runner import SetBidsResult, execute_plan
 from hashbidder.client import ApiError, HashpowerClient, MarketSettings, UserBid
@@ -17,7 +18,8 @@ from hashbidder.domain.bid_planning import (
     ReconciliationPlan,
 )
 from hashbidder.domain.btc_address import BtcAddress
-from hashbidder.domain.hashrate import Hashrate, HashratePrice
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.ocean_client import OceanSource, OceanTimeWindow
 from hashbidder.target_hashrate import (
     BidWithCooldown,
@@ -126,6 +128,9 @@ def set_bids_target(
     orderbook = client.get_orderbook()
     price_to_set_bids_to = find_market_price(orderbook, settings.price_tick)
     total_hashrate_to_set = compute_needed_hashrate(config.target_hashrate, ocean_24h)
+    we_need_no_hashrate = total_hashrate_to_set == Hashrate(
+        value=Decimal(0), hash_unit=HashUnit.PH, time_unit=TimeUnit.SECOND
+    )
 
     current_bids = client.get_current_bids()
     manageable_bids = tuple(b for b in current_bids if b.status in MANAGEABLE_STATUSES)
@@ -137,6 +142,11 @@ def set_bids_target(
     skipped_bids: tuple[UserBid, ...] = ()
 
     if len(bids_with_cooldowns) > 1:
+        if we_need_no_hashrate:
+            cancel_actions = tuple(
+                CancelAction(bid=b.bid, reason=CancelReason.NEED_ZERO_HASHRATE)
+                for b in bids_with_cooldowns
+            )
 
         def keep_most_flexible_largest_bid(b: BidWithCooldown) -> tuple[int, int]:
             locks = int(b.is_price_in_cooldown) + int(b.is_speed_in_cooldown)
@@ -156,7 +166,7 @@ def set_bids_target(
     else:
         remaining_bids = bids_with_cooldowns
 
-    if len(remaining_bids) < 1:
+    if len(remaining_bids) < 1 and not we_need_no_hashrate:
         create_actions = (
             CreateAction(
                 config=BidConfig(
