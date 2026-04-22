@@ -147,7 +147,7 @@ def set_bids_target(
     cancel_actions: tuple[CancelAction, ...] = ()
     create_actions: tuple[CreateAction, ...] = ()
     edit_actions: tuple[EditAction, ...] = ()
-    skipped_bids: tuple[UserBid, ...] = ()
+    unchanged_bids: tuple[UserBid, ...] = ()
 
     if we_need_no_hashrate:
         cancel_actions = tuple(
@@ -185,7 +185,7 @@ def set_bids_target(
             else total_hashrate_to_set
         )
         if new_price == kept_bid.bid.price and new_speed == kept_bid.bid.speed_limit_ph:
-            skipped_bids = (kept_bid.bid,)
+            unchanged_bids = (kept_bid.bid,)
         else:
             edit_actions = (
                 EditAction(
@@ -199,7 +199,7 @@ def set_bids_target(
         cancels=cancel_actions,
         edits=edit_actions,
         creates=create_actions,
-        unchanged=skipped_bids,
+        unchanged=unchanged_bids,
     )
 
     available_balance = client.get_account_balance()
