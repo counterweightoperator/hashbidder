@@ -142,6 +142,9 @@ def set_bids_target(
 
     current_bids = client.get_current_bids()
     manageable_bids = tuple(b for b in current_bids if b.status in MANAGEABLE_STATUSES)
+    non_manageable_bids = tuple(
+        b for b in current_bids if b.status not in MANAGEABLE_STATUSES
+    )
     bids_with_cooldowns = resolve_cooldowns(manageable_bids, settings, now, client)
 
     cancel_actions: tuple[CancelAction, ...] = ()
@@ -213,7 +216,7 @@ def set_bids_target(
 
     set_bids_result = SetBidsResult(
         plan=plan,
-        skipped_bids=(),
+        skipped_bids=non_manageable_bids,
         balance_check=balance_check,
         execution=execution_result,
     )
