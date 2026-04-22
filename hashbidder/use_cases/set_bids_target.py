@@ -97,6 +97,14 @@ def resolve_cooldowns(
     return tuple(bids_with_cooldown)
 
 
+def _keep_most_flexible_largest_bid(b: BidWithCooldown) -> tuple[int, int]:
+    locks = int(b.is_price_in_cooldown) + int(b.is_speed_in_cooldown)
+    remaining = b.bid.amount_remaining_sat
+    if remaining is None:
+        remaining = b.bid.amount_sat
+    return (locks, -remaining)
+
+
 def set_bids_target(
     client: HashpowerClient,
     ocean: OceanSource,
@@ -148,14 +156,7 @@ def set_bids_target(
                 for b in bids_with_cooldowns
             )
 
-        def keep_most_flexible_largest_bid(b: BidWithCooldown) -> tuple[int, int]:
-            locks = int(b.is_price_in_cooldown) + int(b.is_speed_in_cooldown)
-            remaining = b.bid.amount_remaining_sat
-            if remaining is None:
-                remaining = b.bid.amount_sat
-            return (locks, -remaining)
-
-        kept_bid = min(bids_with_cooldowns, key=keep_most_flexible_largest_bid)
+        kept_bid = min(bids_with_cooldowns, key=_keep_most_flexible_largest_bid)
 
         cancel_actions = tuple(
             CancelAction(bid=b.bid, reason=CancelReason.TOO_MANY_BIDS)
