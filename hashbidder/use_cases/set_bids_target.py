@@ -5,7 +5,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from hashbidder.bid_runner import ExecutionResult, SetBidsResult, execute_plan
-from hashbidder.client import ApiError, HashpowerClient, MarketSettings, UserBid
+from hashbidder.client import (
+    AccountBalance,
+    ApiError,
+    HashpowerClient,
+    MarketSettings,
+    UserBid,
+)
 from hashbidder.config import TargetHashrateConfig
 from hashbidder.domain.balance_check import check_balance
 from hashbidder.domain.bid_config import BidConfig
@@ -105,43 +111,25 @@ def _keep_most_flexible_largest_bid(b: BidWithCooldown) -> tuple[int, int]:
     return (locks, -remaining)
 
 
-def set_bids_target(
+@dataclass(frozen=True)
+class _GatheredInputs:
+    inputs: TargetHashrateInputs
+    non_manageable_bids: tuple[UserBid, ...]
+    available_balance: AccountBalance
+
+
+def _gather_inputs(
     client: HashpowerClient,
     ocean: OceanSource,
     address: BtcAddress,
     config: TargetHashrateConfig,
-    dry_run: bool,
-    now: datetime | None = None,
-) -> SetBidsTargetResult:
-    """Plan reconciliation to drive the 24h Ocean hashrate toward target.
-
-    Steps:
-        1. Read Ocean's 24h hashrate.
-        2. Find the cheapest served bid in the order book and undercut it by 1 sat.
-        3. Compute needed hashrate.
-        4. Resolve per-bid cooldowns: fetches /spot/bid/detail history and derives
-           authoritative per-field timestamps.
-        5. Reconcile toward a single target bid:
-             - if needed hashrate is zero, cancel every manageable bid;
-             - else if no manageable bids exist, create one at (price, needed);
-             - else keep the most flexible/largest bid, cancel the rest, and
-               edit or skip the keeper. Cooldowns block decreases only; an
-               increase on a locked field always goes through.
-        6. Check the account balance and, unless `dry_run`, execute the plan.
-
-    `now` defaults to the current UTC time; tests inject a fixed value.
-    """
-    if now is None:
-        now = datetime.now(UTC)
-
+    now: datetime,
+) -> _GatheredInputs:
     ocean_24h = _ocean_24h(ocean, address)
     settings = client.get_market_settings()
     orderbook = client.get_orderbook()
-    price_to_set_bids_to = find_market_price(orderbook, settings.price_tick)
-    total_hashrate_to_set = compute_needed_hashrate(config.target_hashrate, ocean_24h)
-    we_need_no_hashrate = total_hashrate_to_set == Hashrate(
-        value=Decimal(0), hash_unit=HashUnit.PH, time_unit=TimeUnit.SECOND
-    )
+    price = find_market_price(orderbook, settings.price_tick)
+    needed = compute_needed_hashrate(config.target_hashrate, ocean_24h)
 
     current_bids = client.get_current_bids()
     manageable_bids = tuple(b for b in current_bids if b.status in MANAGEABLE_STATUSES)
@@ -149,6 +137,27 @@ def set_bids_target(
         b for b in current_bids if b.status not in MANAGEABLE_STATUSES
     )
     bids_with_cooldowns = resolve_cooldowns(manageable_bids, settings, now, client)
+
+    return _GatheredInputs(
+        inputs=TargetHashrateInputs(
+            ocean_24h=ocean_24h,
+            target=config.target_hashrate,
+            needed=needed,
+            price=price,
+            bids_with_cooldowns=bids_with_cooldowns,
+        ),
+        non_manageable_bids=non_manageable_bids,
+        available_balance=client.get_account_balance(),
+    )
+
+
+def _plan_reconciliation(
+    inputs: TargetHashrateInputs,
+    config: TargetHashrateConfig,
+) -> ReconciliationPlan:
+    we_need_no_hashrate = inputs.needed == Hashrate(
+        value=Decimal(0), hash_unit=HashUnit.PH, time_unit=TimeUnit.SECOND
+    )
 
     cancel_actions: tuple[CancelAction, ...] = ()
     create_actions: tuple[CreateAction, ...] = ()
@@ -158,37 +167,36 @@ def set_bids_target(
     if we_need_no_hashrate:
         cancel_actions = tuple(
             CancelAction(bid=b.bid, reason=CancelReason.NEED_ZERO_HASHRATE)
-            for b in bids_with_cooldowns
+            for b in inputs.bids_with_cooldowns
         )
-    elif not bids_with_cooldowns:
+    elif not inputs.bids_with_cooldowns:
         create_actions = (
             CreateAction(
                 config=BidConfig(
-                    price=price_to_set_bids_to,
-                    speed_limit=total_hashrate_to_set,
+                    price=inputs.price,
+                    speed_limit=inputs.needed,
                 ),
                 amount=config.default_amount,
                 upstream=config.upstream,
             ),
         )
     else:
-        kept_bid = min(bids_with_cooldowns, key=_keep_most_flexible_largest_bid)
+        kept_bid = min(inputs.bids_with_cooldowns, key=_keep_most_flexible_largest_bid)
         cancel_actions = tuple(
             CancelAction(bid=b.bid, reason=CancelReason.TOO_MANY_BIDS)
-            for b in bids_with_cooldowns
+            for b in inputs.bids_with_cooldowns
             if b is not kept_bid
         )
         new_price = (
             kept_bid.bid.price
-            if kept_bid.is_price_in_cooldown
-            and price_to_set_bids_to < kept_bid.bid.price
-            else price_to_set_bids_to
+            if kept_bid.is_price_in_cooldown and inputs.price < kept_bid.bid.price
+            else inputs.price
         )
         new_speed = (
             kept_bid.bid.speed_limit_ph
             if kept_bid.is_speed_in_cooldown
-            and total_hashrate_to_set < kept_bid.bid.speed_limit_ph
-            else total_hashrate_to_set
+            and inputs.needed < kept_bid.bid.speed_limit_ph
+            else inputs.needed
         )
         if new_price == kept_bid.bid.price and new_speed == kept_bid.bid.speed_limit_ph:
             unchanged_bids = (kept_bid.bid,)
@@ -201,38 +209,62 @@ def set_bids_target(
                 ),
             )
 
-    plan = ReconciliationPlan(
+    return ReconciliationPlan(
         cancels=cancel_actions,
         edits=edit_actions,
         creates=create_actions,
         unchanged=unchanged_bids,
     )
 
-    available_balance = client.get_account_balance()
+
+def _apply_plan(
+    client: HashpowerClient,
+    plan: ReconciliationPlan,
+    dry_run: bool,
+) -> ExecutionResult | None:
+    if dry_run:
+        return None
+    return execute_plan(client, plan)
+
+
+def set_bids_target(
+    client: HashpowerClient,
+    ocean: OceanSource,
+    address: BtcAddress,
+    config: TargetHashrateConfig,
+    dry_run: bool,
+    now: datetime | None = None,
+) -> SetBidsTargetResult:
+    """Plan reconciliation to drive the 24h Ocean hashrate toward target.
+
+    Three phases:
+        1. Gather inputs: read Ocean 24h, market settings, orderbook, current
+           bids (with per-bid cooldown annotations), and the account balance.
+        2. Plan: reconcile toward a single target bid. Cancel all if needed
+           hashrate is zero; create one if no bids exist; else keep the most
+           flexible/largest bid, cancel the rest, and edit/skip the keeper.
+           Cooldowns block decreases only; increases always go through.
+        3. Apply: unless `dry_run`, execute the plan.
+
+    `now` defaults to the current UTC time; tests inject a fixed value.
+    """
+    if now is None:
+        now = datetime.now(UTC)
+
+    gathered = _gather_inputs(client, ocean, address, config, now)
+    plan = _plan_reconciliation(gathered.inputs, config)
     balance_check = check_balance(
         plan=plan,
-        available_sats=available_balance.available_sat,
+        available_sats=gathered.available_balance.available_sat,
     )
-    execution_result: ExecutionResult | None = None
-    if not dry_run:
-        execution_result = execute_plan(client, plan)
-
-    set_bids_result = SetBidsResult(
-        plan=plan,
-        skipped_bids=non_manageable_bids,
-        balance_check=balance_check,
-        execution=execution_result,
-    )
-
-    inputs = TargetHashrateInputs(
-        ocean_24h=ocean_24h,
-        target=config.target_hashrate,
-        needed=total_hashrate_to_set,
-        price=price_to_set_bids_to,
-        bids_with_cooldowns=bids_with_cooldowns,
-    )
+    execution_result = _apply_plan(client, plan, dry_run)
 
     return SetBidsTargetResult(
-        inputs=inputs,
-        set_bids_result=set_bids_result,
+        inputs=gathered.inputs,
+        set_bids_result=SetBidsResult(
+            plan=plan,
+            skipped_bids=gathered.non_manageable_bids,
+            balance_check=balance_check,
+            execution=execution_result,
+        ),
     )
