@@ -23,7 +23,7 @@ from hashbidder.domain.sats import Sats
 from hashbidder.domain.sats_burn_rate import SatsBurnRate
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.services.bid_runner import SetBidsResult
-from hashbidder.target_hashrate import BidWithCooldown
+from hashbidder.services.target_hashrate import BidWithCooldown
 from hashbidder.use_cases.set_bids_target import (
     SetBidsTargetResult,
     TargetHashrateInputs,

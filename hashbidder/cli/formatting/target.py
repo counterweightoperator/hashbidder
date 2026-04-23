@@ -7,7 +7,7 @@ from hashbidder.cli.formatting.bids import format_set_bids_result
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.target_hashrate import BidWithCooldown
+from hashbidder.services.target_hashrate import BidWithCooldown
 from hashbidder.use_cases import SetBidsTargetResult
 
 
