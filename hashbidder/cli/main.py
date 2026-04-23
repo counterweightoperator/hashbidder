@@ -14,6 +14,16 @@ from dotenv import load_dotenv
 
 from hashbidder import use_cases
 from hashbidder.cli.config import load_config
+from hashbidder.cli.formatting.bids import format_set_bids_result
+from hashbidder.cli.formatting.hashvalue import (
+    format_hashvalue,
+    format_hashvalue_verbose,
+)
+from hashbidder.cli.formatting.ocean import format_ocean_stats
+from hashbidder.cli.formatting.target import (
+    format_set_bids_target_result,
+    format_set_bids_target_result_verbose,
+)
 from hashbidder.clients.braiins import (
     API_BASE,
     ApiError,
@@ -37,14 +47,6 @@ from hashbidder.domain.bid_config import SetBidsConfig, TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.formatting import (
-    format_hashvalue,
-    format_hashvalue_verbose,
-    format_ocean_stats,
-    format_set_bids_result,
-    format_set_bids_target_result,
-    format_set_bids_target_result_verbose,
-)
 
 
 @dataclass

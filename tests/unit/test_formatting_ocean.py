@@ -2,11 +2,11 @@
 
 from decimal import Decimal
 
+from hashbidder.cli.formatting.ocean import format_ocean_stats
 from hashbidder.clients.ocean import AccountStats, HashrateWindow, OceanTimeWindow
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashUnit
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.formatting import format_ocean_stats
 
 
 def _window(tw: OceanTimeWindow, value: str, unit: HashUnit) -> HashrateWindow:

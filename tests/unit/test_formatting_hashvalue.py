@@ -4,12 +4,15 @@ from decimal import Decimal
 
 import httpx
 
+from hashbidder.cli.formatting.hashvalue import (
+    format_hashvalue,
+    format_hashvalue_verbose,
+)
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.hashvalue import HashvalueComponents
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.formatting import format_hashvalue, format_hashvalue_verbose
 
 COMPONENTS = HashvalueComponents(
     tip_height=BlockHeight(840_000),

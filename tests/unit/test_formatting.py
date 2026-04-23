@@ -4,6 +4,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from hashbidder.bid_runner import SetBidsResult
+from hashbidder.cli.formatting.bids import (
+    format_balance_check,
+    format_plan,
+    format_set_bids_result,
+)
+from hashbidder.cli.formatting.target import format_set_bids_target_result_verbose
 from hashbidder.clients.braiins import BidStatus
 from hashbidder.domain.balance_check import BalanceCheck, BalanceStatus
 from hashbidder.domain.bid_planning import (
@@ -17,12 +23,6 @@ from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.sats_burn_rate import SatsBurnRate
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.formatting import (
-    format_balance_check,
-    format_plan,
-    format_set_bids_result,
-    format_set_bids_target_result_verbose,
-)
 from hashbidder.target_hashrate import BidWithCooldown
 from hashbidder.use_cases.set_bids_target import (
     SetBidsTargetResult,
