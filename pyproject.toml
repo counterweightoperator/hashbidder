@@ -40,7 +40,6 @@ forbidden_modules = [
     "hashbidder.bid_runner",
     "hashbidder.clients.ocean",
     "hashbidder.clients.mempool",
-    "hashbidder.hashvalue",
     "hashbidder.formatting",
 ]
 

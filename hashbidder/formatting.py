@@ -24,9 +24,9 @@ from hashbidder.domain.bid_planning import (
 )
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.hashvalue import HashvalueComponents
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.hashvalue import HashvalueComponents
 from hashbidder.target_hashrate import BidWithCooldown
 from hashbidder.use_cases import SetBidsTargetResult
 
