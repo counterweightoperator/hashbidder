@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from hashbidder.client import BidItem, OrderBook
+from hashbidder.clients.braiins import BidItem, OrderBook
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.sats import Sats

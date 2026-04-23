@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from click.testing import CliRunner
 
-from hashbidder.client import AskItem, BidItem, OrderBook
+from hashbidder.clients.braiins import AskItem, BidItem, OrderBook
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from hashbidder.bid_runner import SetBidsResult
-from hashbidder.client import BidStatus
+from hashbidder.clients.braiins import BidStatus
 from hashbidder.domain.balance_check import BalanceCheck, BalanceStatus
 from hashbidder.domain.bid_planning import (
     CancelAction,

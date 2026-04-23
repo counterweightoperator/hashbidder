@@ -1,7 +1,7 @@
 """Ocean account stats use case."""
 
+from hashbidder.clients.ocean import AccountStats, OceanSource
 from hashbidder.domain.btc_address import BtcAddress
-from hashbidder.ocean_client import AccountStats, OceanSource
 
 
 def get_ocean_account_stats(ocean: OceanSource, address: BtcAddress) -> AccountStats:

@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from hashbidder.client import AccountBalance, BidItem, OrderBook
+from hashbidder.clients.braiins import AccountBalance, BidItem, OrderBook
+from hashbidder.clients.ocean import AccountStats, HashrateWindow, OceanTimeWindow
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.main import Clients, cli
-from hashbidder.ocean_client import AccountStats, HashrateWindow, OceanTimeWindow
 from tests.conftest import (
     EH_DAY,
     OTHER_UPSTREAM,

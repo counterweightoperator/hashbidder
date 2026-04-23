@@ -5,10 +5,10 @@ from decimal import Decimal
 import httpx
 import pytest
 
+from hashbidder.clients.ocean import OceanClient, OceanError, OceanTimeWindow
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import HashUnit
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.ocean_client import OceanClient, OceanError, OceanTimeWindow
 
 _VALID_HTML = """\
 <tr class="table-row">

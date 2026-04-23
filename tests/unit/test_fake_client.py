@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from hashbidder.client import (
+from hashbidder.clients.braiins import (
     ApiError,
     BidHistory,
     BidHistoryEntry,

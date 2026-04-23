@@ -1,8 +1,8 @@
 """Hashvalue use case."""
 
+from hashbidder.clients.mempool import MempoolSource
 from hashbidder.domain.bitcoin import BLOCKS_PER_EPOCH
 from hashbidder.hashvalue import HashvalueComponents, compute_hashvalue
-from hashbidder.mempool_client import MempoolSource
 
 
 def get_hashvalue(mempool: MempoolSource) -> HashvalueComponents:

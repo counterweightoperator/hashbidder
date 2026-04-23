@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
-from hashbidder.client import (
+from hashbidder.clients.braiins import (
     ApiError,
     BidId,
     ClOrderId,

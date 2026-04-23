@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from hashbidder.client import OrderBook, UserBid
+from hashbidder.clients.braiins import OrderBook, UserBid
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.time_unit import TimeUnit
