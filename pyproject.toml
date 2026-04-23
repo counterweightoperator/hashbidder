@@ -50,6 +50,15 @@ modules = [
     "hashbidder.use_cases.set_bids_target",
 ]
 
+[[tool.importlinter.contracts]]
+name = "Clients are independent of each other"
+type = "independence"
+modules = [
+    "hashbidder.clients.braiins",
+    "hashbidder.clients.mempool",
+    "hashbidder.clients.ocean",
+]
+
 [tool.mypy]
 strict = true
 
