@@ -19,6 +19,12 @@ from hashbidder.clients.braiins import (
     BraiinsClient,
     HashpowerClient,
 )
+from hashbidder.clients.mempool import (
+    DEFAULT_MEMPOOL_URL,
+    MempoolClient,
+    MempoolError,
+    MempoolSource,
+)
 from hashbidder.clients.ocean import (
     DEFAULT_OCEAN_URL,
     OceanClient,
@@ -37,12 +43,6 @@ from hashbidder.formatting import (
     format_set_bids_result,
     format_set_bids_target_result,
     format_set_bids_target_result_verbose,
-)
-from hashbidder.mempool_client import (
-    DEFAULT_MEMPOOL_URL,
-    MempoolClient,
-    MempoolError,
-    MempoolSource,
 )
 
 

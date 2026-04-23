@@ -5,9 +5,9 @@ from decimal import Decimal
 import httpx
 import pytest
 
+from hashbidder.clients.mempool import MempoolClient, MempoolError
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.sats import Sats
-from hashbidder.mempool_client import MempoolClient, MempoolError
 
 BASE_URL = httpx.URL("http://test-mempool")
 

@@ -4,9 +4,9 @@ from decimal import Decimal
 
 import pytest
 
+from hashbidder.clients.mempool import ChainStats, MempoolError
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.sats import Sats
-from hashbidder.mempool_client import ChainStats, MempoolError
 from hashbidder.use_cases import get_hashvalue
 from tests.conftest import FakeMempoolSource
 
