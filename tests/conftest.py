@@ -16,6 +16,7 @@ from hashbidder.braiins_client import (
     Upstream,
     UserBid,
 )
+from hashbidder.clients.ocean import AccountStats, OceanError
 from hashbidder.config import BidConfig, SetBidsConfig
 from hashbidder.domain.balance_check import BalanceCheck, BalanceStatus
 from hashbidder.domain.btc_address import BtcAddress
@@ -27,7 +28,6 @@ from hashbidder.domain.sats_burn_rate import SatsBurnRate
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.mempool_client import ChainStats, MempoolError
-from hashbidder.ocean_client import AccountStats, OceanError
 
 UPSTREAM = Upstream(
     url=StratumUrl("stratum+tcp://pool.example.com:3333"), identity="worker1"

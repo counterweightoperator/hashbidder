@@ -14,6 +14,12 @@ from dotenv import load_dotenv
 
 from hashbidder import use_cases
 from hashbidder.braiins_client import API_BASE, ApiError, BraiinsClient, HashpowerClient
+from hashbidder.clients.ocean import (
+    DEFAULT_OCEAN_URL,
+    OceanClient,
+    OceanError,
+    OceanSource,
+)
 from hashbidder.config import SetBidsConfig, TargetHashrateConfig, load_config
 from hashbidder.domain.balance_check import BalanceStatus
 from hashbidder.domain.btc_address import BtcAddress
@@ -32,12 +38,6 @@ from hashbidder.mempool_client import (
     MempoolClient,
     MempoolError,
     MempoolSource,
-)
-from hashbidder.ocean_client import (
-    DEFAULT_OCEAN_URL,
-    OceanClient,
-    OceanError,
-    OceanSource,
 )
 
 

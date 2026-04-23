@@ -9,6 +9,7 @@ import httpx
 
 from hashbidder.bid_runner import ActionOutcome, ActionStatus, SetBidsResult
 from hashbidder.braiins_client import UserBid
+from hashbidder.clients.ocean import AccountStats
 from hashbidder.domain.balance_check import (
     LOW_BALANCE_RUNWAY,
     BalanceCheck,
@@ -26,7 +27,6 @@ from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.hashvalue import HashvalueComponents
-from hashbidder.ocean_client import AccountStats
 from hashbidder.target_hashrate import BidWithCooldown
 from hashbidder.use_cases import SetBidsTargetResult
 

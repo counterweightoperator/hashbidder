@@ -38,7 +38,7 @@ forbidden_modules = [
     "hashbidder.main",
     "hashbidder.config",
     "hashbidder.bid_runner",
-    "hashbidder.ocean_client",
+    "hashbidder.clients.ocean",
     "hashbidder.mempool_client",
     "hashbidder.hashvalue",
     "hashbidder.formatting",

@@ -15,13 +15,13 @@ from hashbidder.braiins_client import (
     MarketSettings,
     OrderBook,
 )
+from hashbidder.clients.ocean import AccountStats, HashrateWindow, OceanTimeWindow
 from hashbidder.config import TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.ocean_client import AccountStats, HashrateWindow, OceanTimeWindow
 from hashbidder.use_cases.set_bids_target import set_bids_target
 from tests.conftest import UPSTREAM, FakeClient, FakeOceanSource, make_user_bid
 

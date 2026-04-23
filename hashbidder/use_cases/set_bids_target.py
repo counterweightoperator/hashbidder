@@ -12,6 +12,7 @@ from hashbidder.braiins_client import (
     MarketSettings,
     UserBid,
 )
+from hashbidder.clients.ocean import OceanSource, OceanTimeWindow
 from hashbidder.config import TargetHashrateConfig
 from hashbidder.domain.balance_check import check_balance
 from hashbidder.domain.bid_config import BidConfig
@@ -26,7 +27,6 @@ from hashbidder.domain.bid_planning import (
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.ocean_client import OceanSource, OceanTimeWindow
 from hashbidder.target_hashrate import (
     BidWithCooldown,
     compute_needed_hashrate,

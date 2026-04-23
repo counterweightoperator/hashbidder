@@ -4,15 +4,15 @@ from decimal import Decimal
 
 from click.testing import CliRunner
 
-from hashbidder.domain.hashrate import Hashrate, HashUnit
-from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.main import Clients, cli
-from hashbidder.ocean_client import (
+from hashbidder.clients.ocean import (
     AccountStats,
     HashrateWindow,
     OceanError,
     OceanTimeWindow,
 )
+from hashbidder.domain.hashrate import Hashrate, HashUnit
+from hashbidder.domain.time_unit import TimeUnit
+from hashbidder.main import Clients, cli
 from tests.conftest import FakeOceanSource
 
 _ADDRESS = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"

@@ -4,15 +4,15 @@ from decimal import Decimal
 
 import pytest
 
-from hashbidder.domain.btc_address import BtcAddress
-from hashbidder.domain.hashrate import Hashrate, HashUnit
-from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.ocean_client import (
+from hashbidder.clients.ocean import (
     AccountStats,
     HashrateWindow,
     OceanError,
     OceanTimeWindow,
 )
+from hashbidder.domain.btc_address import BtcAddress
+from hashbidder.domain.hashrate import Hashrate, HashUnit
+from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.use_cases import get_ocean_account_stats
 from tests.conftest import FakeOceanSource
 
