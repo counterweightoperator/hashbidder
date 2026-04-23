@@ -1,26 +1,21 @@
 """Bid configuration file parsing."""
 
 import tomllib
-from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from hashbidder.domain.bid_config import BidConfig, SetBidsConfig
+from hashbidder.domain.bid_config import (
+    BidConfig,
+    SetBidsConfig,
+    TargetHashrateConfig,
+)
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.stratum_url import StratumUrl
 from hashbidder.domain.time_unit import TimeUnit
 from hashbidder.domain.upstream import Upstream
-
-__all__ = [
-    "BidConfig",
-    "ConfigMode",
-    "SetBidsConfig",
-    "TargetHashrateConfig",
-    "load_config",
-]
 
 
 class ConfigMode(Enum):
@@ -28,15 +23,6 @@ class ConfigMode(Enum):
 
     EXPLICIT_BIDS = "explicit-bids"
     TARGET_HASHRATE = "target-hashrate"
-
-
-@dataclass(frozen=True)
-class TargetHashrateConfig:
-    """Parsed set-bids configuration for target-hashrate mode."""
-
-    default_amount: Sats
-    upstream: Upstream
-    target_hashrate: Hashrate
 
 
 def load_config(path: Path) -> SetBidsConfig | TargetHashrateConfig:

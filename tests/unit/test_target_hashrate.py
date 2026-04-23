@@ -8,11 +8,9 @@ from hashbidder.clients.braiins import BidItem, OrderBook
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick
 from hashbidder.domain.sats import Sats
+from hashbidder.domain.target_hashrate import compute_needed_hashrate
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.target_hashrate import (
-    compute_needed_hashrate,
-    find_market_price,
-)
+from hashbidder.services.target_hashrate import find_market_price
 
 EH_DAY = Hashrate(Decimal(1), HashUnit.EH, TimeUnit.DAY)
 PH_DAY = Hashrate(Decimal(1), HashUnit.PH, TimeUnit.DAY)

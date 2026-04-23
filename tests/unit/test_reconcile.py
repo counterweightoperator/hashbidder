@@ -1,9 +1,9 @@
 """Tests for the reconcile orchestration (balance check + execution)."""
 
-from hashbidder.bid_runner import reconcile
 from hashbidder.clients.braiins import AccountBalance
 from hashbidder.domain.balance_check import BalanceStatus
 from hashbidder.domain.sats import Sats
+from hashbidder.services.bid_runner import reconcile
 from tests.conftest import (
     UPSTREAM,
     FakeClient,

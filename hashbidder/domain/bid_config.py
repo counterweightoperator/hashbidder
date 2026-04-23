@@ -22,3 +22,12 @@ class SetBidsConfig:
     default_amount: Sats
     upstream: Upstream
     bids: tuple[BidConfig, ...]
+
+
+@dataclass(frozen=True)
+class TargetHashrateConfig:
+    """Parsed set-bids configuration for target-hashrate mode."""
+
+    default_amount: Sats
+    upstream: Upstream
+    target_hashrate: Hashrate

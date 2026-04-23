@@ -8,7 +8,8 @@ import pytest
 from hypothesis import given, settings, strategies
 from hypothesis.strategies import DrawFn, composite
 
-from hashbidder.config import SetBidsConfig, TargetHashrateConfig, load_config
+from hashbidder.cli.config import load_config
+from hashbidder.domain.bid_config import SetBidsConfig, TargetHashrateConfig
 from hashbidder.domain.hashrate import Hashrate, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit

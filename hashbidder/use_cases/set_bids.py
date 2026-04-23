@@ -1,8 +1,8 @@
 """Explicit-bids set-bids use case."""
 
-from hashbidder.bid_runner import SetBidsResult, reconcile
 from hashbidder.clients.braiins import HashpowerClient
-from hashbidder.config import SetBidsConfig
+from hashbidder.domain.bid_config import SetBidsConfig
+from hashbidder.services.bid_runner import SetBidsResult, reconcile
 
 
 def set_bids(

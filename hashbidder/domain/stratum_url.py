@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+from urllib.parse import urlparse
 
 _VALID_SCHEMES = ("stratum+tcp", "stratum+ssl")
 
@@ -14,7 +14,7 @@ class StratumUrl:
     requiring a host and port.
     """
 
-    __slots__ = ("_url",)
+    __slots__ = ("_host", "_port", "_scheme")
 
     def __init__(self, raw: str) -> None:
         """Parse and validate a stratum URL.
@@ -25,38 +25,43 @@ class StratumUrl:
         Raises:
             ValueError: If the URL has an invalid scheme, host, or port.
         """
-        url = httpx.URL(raw)
+        parsed = urlparse(raw)
 
-        scheme = url.scheme
-        if scheme not in _VALID_SCHEMES:
+        if parsed.scheme not in _VALID_SCHEMES:
             raise ValueError(
-                f"Invalid stratum URL scheme {scheme!r}, "
+                f"Invalid stratum URL scheme {parsed.scheme!r}, "
                 f"expected one of {_VALID_SCHEMES}"
             )
 
-        if not url.host:
+        if not parsed.hostname:
             raise ValueError(f"Stratum URL must have a host: {raw!r}")
 
-        if url.port is None:
+        try:
+            port = parsed.port
+        except ValueError as e:
+            raise ValueError(f"Stratum URL has invalid port: {raw!r}") from e
+
+        if port is None:
             raise ValueError(f"Stratum URL must have a port: {raw!r}")
 
-        self._url = url
+        self._scheme = parsed.scheme
+        self._host = parsed.hostname
+        self._port = port
 
     @property
     def scheme(self) -> str:
         """The URL scheme (e.g. 'stratum+tcp')."""
-        return self._url.scheme
+        return self._scheme
 
     @property
     def host(self) -> str:
         """The hostname."""
-        return self._url.host
+        return self._host
 
     @property
     def port(self) -> int:
         """The port number."""
-        assert self._url.port is not None
-        return self._url.port
+        return self._port
 
     def _key(self) -> tuple[str, str, int]:
         return (self.scheme, self.host, self.port)

@@ -4,10 +4,10 @@ from decimal import Decimal
 
 from click.testing import CliRunner
 
+from hashbidder.cli.main import Clients, cli
 from hashbidder.clients.mempool import ChainStats, MempoolError
 from hashbidder.domain.block_height import BlockHeight
 from hashbidder.domain.sats import Sats
-from hashbidder.main import Clients, cli
 from tests.conftest import FakeMempoolSource
 
 CHAIN_STATS = ChainStats(

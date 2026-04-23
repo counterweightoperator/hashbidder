@@ -2,12 +2,12 @@
 
 from decimal import Decimal
 
-from hashbidder.config import TargetHashrateConfig
+from hashbidder.domain.bid_config import TargetHashrateConfig
 from hashbidder.domain.bid_planning import CancelReason
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.target_hashrate import BidWithCooldown
+from hashbidder.services.target_hashrate import BidWithCooldown
 from hashbidder.use_cases.set_bids_target import (
     TargetHashrateInputs,
     _plan_reconciliation,

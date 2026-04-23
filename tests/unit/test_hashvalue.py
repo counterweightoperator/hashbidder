@@ -5,8 +5,8 @@ from decimal import Decimal
 import pytest
 
 from hashbidder.domain.block_height import BlockHeight
+from hashbidder.domain.hashvalue import compute_hashvalue
 from hashbidder.domain.sats import Sats
-from hashbidder.hashvalue import compute_hashvalue
 
 
 class TestComputeHashvalue:

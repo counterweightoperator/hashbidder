@@ -16,7 +16,7 @@ from hashbidder.clients.braiins import (
     OrderBook,
 )
 from hashbidder.clients.ocean import AccountStats, HashrateWindow, OceanTimeWindow
-from hashbidder.config import TargetHashrateConfig
+from hashbidder.domain.bid_config import TargetHashrateConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick

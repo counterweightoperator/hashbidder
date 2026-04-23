@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from hashbidder.bid_runner import ExecutionResult, SetBidsResult, execute_plan
 from hashbidder.clients.braiins import (
     AccountBalance,
     ApiError,
@@ -13,9 +12,8 @@ from hashbidder.clients.braiins import (
     UserBid,
 )
 from hashbidder.clients.ocean import OceanSource, OceanTimeWindow
-from hashbidder.config import TargetHashrateConfig
 from hashbidder.domain.balance_check import check_balance
-from hashbidder.domain.bid_config import BidConfig
+from hashbidder.domain.bid_config import BidConfig, TargetHashrateConfig
 from hashbidder.domain.bid_planning import (
     MANAGEABLE_STATUSES,
     CancelAction,
@@ -26,12 +24,10 @@ from hashbidder.domain.bid_planning import (
 )
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
+from hashbidder.domain.target_hashrate import compute_needed_hashrate
 from hashbidder.domain.time_unit import TimeUnit
-from hashbidder.target_hashrate import (
-    BidWithCooldown,
-    compute_needed_hashrate,
-    find_market_price,
-)
+from hashbidder.services.bid_runner import ExecutionResult, SetBidsResult, execute_plan
+from hashbidder.services.target_hashrate import BidWithCooldown, find_market_price
 
 
 @dataclass(frozen=True)

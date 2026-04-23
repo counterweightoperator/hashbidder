@@ -4,7 +4,7 @@ from hypothesis import given, settings, strategies
 from hypothesis.strategies import DrawFn, composite
 
 from hashbidder.clients.braiins import BidStatus, UserBid
-from hashbidder.config import BidConfig, SetBidsConfig
+from hashbidder.domain.bid_config import BidConfig, SetBidsConfig
 from hashbidder.domain.bid_planning import CancelReason, plan_bid_changes
 from hashbidder.domain.sats import Sats
 from tests.conftest import (

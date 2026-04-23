@@ -1,10 +1,5 @@
 """Tests for the execution engine: retries, failures, atomic pairs."""
 
-from hashbidder.bid_runner import (
-    POST_EXECUTE_REFETCH_DELAY_SECONDS,
-    ActionStatus,
-    execute_plan,
-)
 from hashbidder.clients.braiins import (
     ApiError,
     ClOrderId,
@@ -14,6 +9,11 @@ from hashbidder.clients.braiins import (
 from hashbidder.domain.bid_planning import plan_bid_changes
 from hashbidder.domain.hashrate import Hashrate, HashratePrice
 from hashbidder.domain.sats import Sats
+from hashbidder.services.bid_runner import (
+    POST_EXECUTE_REFETCH_DELAY_SECONDS,
+    ActionStatus,
+    execute_plan,
+)
 from tests.conftest import (
     OTHER_UPSTREAM,
     UPSTREAM,

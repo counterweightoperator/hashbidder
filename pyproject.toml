@@ -19,8 +19,7 @@ ignore = ["D105"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
-"hashbidder/main.py" = ["S101"]
-"hashbidder/domain/stratum_url.py" = ["S101"]
+"hashbidder/cli/main.py" = ["S101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -29,26 +28,15 @@ convention = "google"
 root_packages = ["hashbidder"]
 
 [[tool.importlinter.contracts]]
-name = "Domain has no outward dependencies"
-type = "forbidden"
-source_modules = ["hashbidder.domain"]
-forbidden_modules = [
+name = "Hexagonal layers"
+type = "layers"
+layers = [
+    "hashbidder.cli",
     "hashbidder.use_cases",
-    "hashbidder.client",
-    "hashbidder.main",
-    "hashbidder.config",
-    "hashbidder.bid_runner",
-    "hashbidder.clients.ocean",
-    "hashbidder.clients.mempool",
-    "hashbidder.hashvalue",
-    "hashbidder.formatting",
+    "hashbidder.services",
+    "hashbidder.clients",
+    "hashbidder.domain",
 ]
-
-[[tool.importlinter.contracts]]
-name = "Use cases must not import from CLI layer"
-type = "forbidden"
-source_modules = ["hashbidder.use_cases"]
-forbidden_modules = ["hashbidder.main"]
 
 [[tool.importlinter.contracts]]
 name = "Use cases are independent of each other"
@@ -59,6 +47,15 @@ modules = [
     "hashbidder.use_cases.ping",
     "hashbidder.use_cases.set_bids",
     "hashbidder.use_cases.set_bids_target",
+]
+
+[[tool.importlinter.contracts]]
+name = "Clients are independent of each other"
+type = "independence"
+modules = [
+    "hashbidder.clients.braiins",
+    "hashbidder.clients.mempool",
+    "hashbidder.clients.ocean",
 ]
 
 [tool.mypy]
@@ -81,5 +78,5 @@ dev = [
 ]
 
 [project.scripts]
-hashbidder = "hashbidder.main:main"
+hashbidder = "hashbidder.cli.main:main"
 

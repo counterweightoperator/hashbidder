@@ -18,8 +18,8 @@ from hashbidder.clients.braiins import (
     HashpowerClient,
     UserBid,
 )
-from hashbidder.config import SetBidsConfig
 from hashbidder.domain.balance_check import BalanceCheck, BalanceStatus, check_balance
+from hashbidder.domain.bid_config import SetBidsConfig
 from hashbidder.domain.bid_planning import (
     MANAGEABLE_STATUSES,
     CancelAction,

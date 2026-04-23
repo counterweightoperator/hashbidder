@@ -18,8 +18,8 @@ from hashbidder.clients.braiins import (
 )
 from hashbidder.clients.mempool import ChainStats, MempoolError
 from hashbidder.clients.ocean import AccountStats, OceanError
-from hashbidder.config import BidConfig, SetBidsConfig
 from hashbidder.domain.balance_check import BalanceCheck, BalanceStatus
+from hashbidder.domain.bid_config import BidConfig, SetBidsConfig
 from hashbidder.domain.btc_address import BtcAddress
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.price_tick import PriceTick

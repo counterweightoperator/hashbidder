@@ -2,7 +2,7 @@
 
 from click.testing import CliRunner
 
-from hashbidder.main import Clients, cli
+from hashbidder.cli.main import Clients, cli
 from tests.conftest import FakeClient, make_user_bid
 
 
