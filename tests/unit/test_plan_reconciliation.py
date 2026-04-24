@@ -46,7 +46,7 @@ def _inputs(
     return TargetHashrateInputs(
         ocean_24h=_ph_s("5"),
         target=_ph_s("10"),
-        needed=needed,
+        needed_hashrate=needed,
         price=price,
         bids_with_cooldowns=bids_with_cooldowns,
     )

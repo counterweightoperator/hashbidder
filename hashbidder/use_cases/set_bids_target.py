@@ -36,7 +36,7 @@ class TargetHashrateInputs:
 
     ocean_24h: Hashrate
     target: Hashrate
-    needed: Hashrate
+    needed_hashrate: Hashrate
     price: HashratePrice
     bids_with_cooldowns: tuple[BidWithCooldown, ...]
 
@@ -125,7 +125,7 @@ def _gather_inputs(
     settings = client.get_market_settings()
     orderbook = client.get_orderbook()
     price = find_market_price(orderbook, settings.price_tick)
-    needed = compute_needed_hashrate(config.target_hashrate, ocean_24h)
+    needed_hashrate = compute_needed_hashrate(config.target_hashrate, ocean_24h)
 
     current_bids = client.get_current_bids()
     manageable_bids = tuple(b for b in current_bids if b.status in MANAGEABLE_STATUSES)
@@ -138,7 +138,7 @@ def _gather_inputs(
         inputs=TargetHashrateInputs(
             ocean_24h=ocean_24h,
             target=config.target_hashrate,
-            needed=needed,
+            needed_hashrate=needed_hashrate,
             price=price,
             bids_with_cooldowns=bids_with_cooldowns,
         ),
@@ -151,7 +151,7 @@ def _plan_reconciliation(
     inputs: TargetHashrateInputs,
     config: TargetHashrateConfig,
 ) -> ReconciliationPlan:
-    we_need_no_hashrate = inputs.needed == Hashrate(
+    we_need_no_hashrate = inputs.needed_hashrate == Hashrate(
         value=Decimal(0), hash_unit=HashUnit.PH, time_unit=TimeUnit.SECOND
     )
 
@@ -170,7 +170,7 @@ def _plan_reconciliation(
             CreateAction(
                 config=BidConfig(
                     price=inputs.price,
-                    speed_limit=inputs.needed,
+                    speed_limit=inputs.needed_hashrate,
                 ),
                 amount=config.default_amount,
                 upstream=config.upstream,
@@ -191,8 +191,8 @@ def _plan_reconciliation(
         new_speed = (
             kept_bid.bid.speed_limit_ph
             if kept_bid.is_speed_in_cooldown
-            and inputs.needed < kept_bid.bid.speed_limit_ph
-            else inputs.needed
+            and inputs.needed_hashrate < kept_bid.bid.speed_limit_ph
+            else inputs.needed_hashrate
         )
         if new_price == kept_bid.bid.price and new_speed == kept_bid.bid.speed_limit_ph:
             unchanged_bids = (kept_bid.bid,)

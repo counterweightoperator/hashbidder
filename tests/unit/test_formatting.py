@@ -387,7 +387,7 @@ class TestFormatTargetHashrateVerbose:
         inputs = TargetHashrateInputs(
             ocean_24h=ph_s("5"),
             target=ph_s("10"),
-            needed=ph_s("15"),
+            needed_hashrate=ph_s("15"),
             price=HashratePrice(sats=Sats(801), per=PH_DAY),
             bids_with_cooldowns=annotated,
         )

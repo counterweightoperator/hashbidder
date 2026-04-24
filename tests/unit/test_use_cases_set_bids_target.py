@@ -83,7 +83,7 @@ class TestSetBidsTarget:
         inputs = result.inputs
         assert inputs.ocean_24h == _ph_s("5")
         assert inputs.target == _ph_s("10")
-        assert inputs.needed == _ph_s("45")
+        assert inputs.needed_hashrate == _ph_s("45")
         assert inputs.price.sats == Sats(801_000)
 
         plan = result.set_bids_result.plan

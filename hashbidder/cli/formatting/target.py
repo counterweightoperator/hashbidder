@@ -40,7 +40,7 @@ def format_set_bids_target_result(result: SetBidsTargetResult) -> str:
             format_target_inputs(
                 ocean_24h=inputs.ocean_24h,
                 target=inputs.target,
-                needed=inputs.needed,
+                needed=inputs.needed_hashrate,
                 price=inputs.price,
             ),
             "",
@@ -56,14 +56,14 @@ def format_set_bids_target_result_verbose(result: SetBidsTargetResult) -> str:
         format_target_inputs(
             ocean_24h=inputs.ocean_24h,
             target=inputs.target,
-            needed=inputs.needed,
+            needed=inputs.needed_hashrate,
             price=inputs.price,
         ),
         "",
         _format_target_distribution_math(
             target=inputs.target,
             ocean_24h=inputs.ocean_24h,
-            needed=inputs.needed,
+            needed=inputs.needed_hashrate,
             price=inputs.price,
         ),
         "",
