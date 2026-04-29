@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from hashbidder.domain.bid_config import BidConfig, SetBidsConfig
+from hashbidder.domain.bid_config import MIN_BID_SPEED_LIMIT, BidConfig, SetBidsConfig
 from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
 from hashbidder.domain.time_unit import TimeUnit
@@ -33,6 +33,13 @@ class EditAction:
     bid: UserBid
     new_price: HashratePrice
     new_speed_limit_ph: Hashrate
+
+    def __post_init__(self) -> None:
+        if self.new_speed_limit_ph < MIN_BID_SPEED_LIMIT:
+            raise ValueError(
+                f"EditAction.new_speed_limit_ph must be >= {MIN_BID_SPEED_LIMIT}, "
+                f"got {self.new_speed_limit_ph}"
+            )
 
     @property
     def price_changed(self) -> bool:

@@ -17,7 +17,7 @@ from hashbidder.domain.time_unit import TimeUnit
 _positive_int = strategies.integers(min_value=1, max_value=10**9)
 
 _positive_decimal = strategies.decimals(
-    min_value=Decimal("0.001"),
+    min_value=Decimal("1"),
     max_value=Decimal("1000000"),
     allow_nan=False,
     allow_infinity=False,

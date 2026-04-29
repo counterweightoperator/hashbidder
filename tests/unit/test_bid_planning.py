@@ -1,14 +1,24 @@
 """Tests for the pure bid planner."""
 
+from decimal import Decimal
+
+import pytest
 from hypothesis import given, settings, strategies
 from hypothesis.strategies import DrawFn, composite
 
 from hashbidder.clients.braiins import BidStatus, UserBid
-from hashbidder.domain.bid_config import BidConfig, SetBidsConfig
-from hashbidder.domain.bid_planning import CancelReason, plan_bid_changes
+from hashbidder.domain.bid_config import (
+    MIN_BID_SPEED_LIMIT,
+    BidConfig,
+    SetBidsConfig,
+)
+from hashbidder.domain.bid_planning import CancelReason, EditAction, plan_bid_changes
+from hashbidder.domain.hashrate import Hashrate, HashratePrice, HashUnit
 from hashbidder.domain.sats import Sats
+from hashbidder.domain.time_unit import TimeUnit
 from tests.conftest import (
     OTHER_UPSTREAM,
+    PH_DAY,
     UPSTREAM,
     make_bid_config,
     make_config,
@@ -378,3 +388,41 @@ class TestReconcileProperties:
 
         for create in plan.creates:
             assert create.amount == cfg.default_amount
+
+
+def _ph_s(value: str) -> Hashrate:
+    return Hashrate(Decimal(value), HashUnit.PH, TimeUnit.SECOND)
+
+
+class TestMinBidSpeedLimit:
+    """Domain-level enforcement of the 1 PH/s minimum bid speed limit."""
+
+    def test_min_bid_speed_limit_is_one_ph_per_second(self) -> None:
+        """The constant matches the documented upstream-API floor."""
+        assert _ph_s("1") == MIN_BID_SPEED_LIMIT
+
+    def test_bid_config_at_min_is_accepted(self) -> None:
+        """A speed_limit exactly equal to the floor is valid."""
+        BidConfig(
+            price=HashratePrice(sats=Sats(1_000), per=PH_DAY),
+            speed_limit=MIN_BID_SPEED_LIMIT,
+        )
+
+    def test_bid_config_below_min_is_rejected(self) -> None:
+        """Constructing a BidConfig below the floor raises ValueError."""
+        with pytest.raises(ValueError, match="speed_limit must be >="):
+            BidConfig(
+                price=HashratePrice(sats=Sats(1_000), per=PH_DAY),
+                speed_limit=_ph_s("0.5"),
+            )
+
+    def test_edit_action_at_min_is_accepted(self) -> None:
+        """An EditAction setting speed exactly to the floor is valid."""
+        bid = make_user_bid("B1", 500, "5.0")
+        EditAction(bid=bid, new_price=bid.price, new_speed_limit_ph=MIN_BID_SPEED_LIMIT)
+
+    def test_edit_action_below_min_is_rejected(self) -> None:
+        """Constructing an EditAction below the floor raises ValueError."""
+        bid = make_user_bid("B1", 500, "5.0")
+        with pytest.raises(ValueError, match="new_speed_limit_ph must be >="):
+            EditAction(bid=bid, new_price=bid.price, new_speed_limit_ph=_ph_s("0.5"))
