@@ -388,7 +388,7 @@ class TestFormatTargetHashrateVerbose:
             ocean_24h=ph_s("5"),
             target=ph_s("10"),
             needed_hashrate=ph_s("15"),
-            price=HashratePrice(sats=Sats(801), per=PH_DAY),
+            target_price=HashratePrice(sats=Sats(801), per=PH_DAY),
             bids_with_cooldowns=annotated,
             non_manageable_bids=(),
             available_balance=AccountBalance(

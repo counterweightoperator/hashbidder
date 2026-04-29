@@ -37,7 +37,7 @@ class TargetHashrateInputs:
     ocean_24h: Hashrate
     target: Hashrate
     needed_hashrate: Hashrate
-    price: HashratePrice
+    target_price: HashratePrice
     bids_with_cooldowns: tuple[BidWithCooldown, ...]
     non_manageable_bids: tuple[UserBid, ...]
     available_balance: AccountBalance
@@ -134,7 +134,7 @@ def _gather_inputs(
         ocean_24h=ocean_24h,
         target=config.target_hashrate,
         needed_hashrate=needed_hashrate,
-        price=price,
+        target_price=price,
         bids_with_cooldowns=bids_with_cooldowns,
         non_manageable_bids=non_manageable_bids,
         available_balance=available_balance,
@@ -163,7 +163,7 @@ def _plan_reconciliation(
         create_actions = (
             CreateAction(
                 config=BidConfig(
-                    price=inputs.price,
+                    price=inputs.target_price,
                     speed_limit=inputs.needed_hashrate,
                 ),
                 amount=config.default_amount,
@@ -179,8 +179,9 @@ def _plan_reconciliation(
         )
         new_price = (
             kept_bid.bid.price
-            if kept_bid.is_price_in_cooldown and inputs.price < kept_bid.bid.price
-            else inputs.price
+            if kept_bid.is_price_in_cooldown
+            and inputs.target_price < kept_bid.bid.price
+            else inputs.target_price
         )
         new_speed = (
             kept_bid.bid.speed_limit_ph

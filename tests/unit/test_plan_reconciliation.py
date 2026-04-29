@@ -53,7 +53,7 @@ def _inputs(
         ocean_24h=_ph_s("5"),
         target=_ph_s("10"),
         needed_hashrate=needed,
-        price=price,
+        target_price=price,
         bids_with_cooldowns=bids_with_cooldowns,
         non_manageable_bids=(),
         available_balance=_ZERO_BALANCE,
