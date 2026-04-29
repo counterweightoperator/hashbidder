@@ -45,12 +45,14 @@ def positive_fractions(draw: DrawFn) -> Fraction:
     return Fraction(numerator, denominator)
 
 
+_negative_fraction = strategies.tuples(
+    strategies.integers(max_value=-1),
+    strategies.integers(min_value=1, max_value=10**6),
+).map(lambda t: Fraction(*t))
+
 _non_positive_fraction = strategies.one_of(
     strategies.integers(max_value=0).map(Fraction),
-    strategies.tuples(
-        strategies.integers(max_value=-1),
-        strategies.integers(min_value=1, max_value=10**6),
-    ).map(lambda t: Fraction(*t)),
+    _negative_fraction,
 )
 
 
@@ -256,13 +258,16 @@ class TestHashrate:
             assert (h * Fraction(5, 3)).value == Decimal("0")
             assert (h / Fraction(5, 3)).value == Decimal("0")
 
-        @given(hashrates(), _non_positive_fraction)
-        def test_mul_by_non_positive_rejected(
-            self, h: Hashrate, scalar: Fraction
-        ) -> None:
-            """Multiplying by any non-positive rational raises ValueError."""
-            with pytest.raises(ValueError, match="positive"):
+        @given(hashrates(), _negative_fraction)
+        def test_mul_by_negative_rejected(self, h: Hashrate, scalar: Fraction) -> None:
+            """Multiplying by any negative rational raises ValueError."""
+            with pytest.raises(ValueError, match="non-negative"):
                 h * scalar
+
+        @given(hashrates())
+        def test_mul_by_zero_yields_zero(self, h: Hashrate) -> None:
+            """Multiplying by zero yields a zero-valued hashrate."""
+            assert (h * Fraction(0)).value == Decimal(0)
 
         @given(hashrates(), _non_positive_fraction)
         def test_div_by_non_positive_rejected(

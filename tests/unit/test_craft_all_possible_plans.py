@@ -104,7 +104,7 @@ class TestNoExistingBids:
         """Each fraction in {10..100}% of target produces a candidate create."""
         target = _ph_s("10")
         plans = craft_all_possible_plans(
-            _inputs(target=target, needed=_ph_s("0")), _config("10")
+            _inputs(target=target, needed=_ph_s("5")), _config("10")
         )
         for f in _NEW_BID_TARGET_FRACTIONS_PERCENT:
             expected = target * Fraction(f, 100)
@@ -112,6 +112,11 @@ class TestNoExistingBids:
                 len(p.creates) == 1 and p.creates[0].config.speed_limit == expected
                 for p in plans
             ), f"Missing create at {f}% of target"
+
+    def test_no_creates_when_needed_is_zero(self) -> None:
+        """When needed_hashrate is zero, the only create option is no-create."""
+        plans = craft_all_possible_plans(_inputs(needed=_ph_s("0")), _config())
+        assert all(p.creates == () for p in plans)
 
     def test_create_at_exact_gap_present(self) -> None:
         """A create sized to the exact remaining gap is also a candidate."""

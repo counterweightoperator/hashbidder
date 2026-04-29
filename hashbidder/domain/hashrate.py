@@ -131,8 +131,8 @@ class Hashrate:
         )
 
     def __mul__(self, scalar: Fraction) -> Hashrate:
-        if scalar <= 0:
-            raise ValueError(f"Hashrate scalar must be positive, got {scalar}")
+        if scalar < 0:
+            raise ValueError(f"Hashrate scalar must be non-negative, got {scalar}")
         scaled = Fraction(self.value) * scalar
         return Hashrate(
             value=Decimal(scaled.numerator) / Decimal(scaled.denominator),

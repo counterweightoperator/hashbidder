@@ -129,14 +129,6 @@ def resolve_cooldowns(
     return tuple(bids_with_cooldown)
 
 
-def _keep_most_flexible_largest_bid(b: BidWithCooldown) -> tuple[int, int]:
-    locks = int(b.is_price_in_cooldown) + int(b.is_speed_in_cooldown)
-    remaining = b.bid.amount_remaining_sat
-    if remaining is None:
-        remaining = b.bid.amount_sat
-    return (locks, -remaining)
-
-
 def _gather_inputs(
     client: HashpowerClient,
     ocean: OceanSource,
@@ -182,14 +174,7 @@ def _per_bid_price_choices(
     choices: list[HashratePrice] = [current]
     if target_price > current or (target_price < current and not is_price_in_cooldown):
         choices.append(target_price)
-    seen: set[HashratePrice] = set()
-    deduped: list[HashratePrice] = []
-    for c in choices:
-        if c in seen:
-            continue
-        seen.add(c)
-        deduped.append(c)
-    return deduped
+    return choices
 
 
 def _per_bid_speed_choices(
@@ -208,10 +193,8 @@ def _per_bid_speed_choices(
         needed_total < current and is_speed_in_cooldown
     ):
         raw.append(needed_total)
-    # Drop any candidate that would violate the bid speed-limit floor. The
-    # current speed is exempt — it's already on the bid and is only used for
-    # the "leave alone" branch, never to construct a fresh EditAction.
-    valid = [h for h in raw if h == current or h >= MIN_BID_SPEED_LIMIT]
+    # Drop any candidate that would violate the bid speed-limit floor.
+    valid = [h for h in raw if h >= MIN_BID_SPEED_LIMIT]
     seen: set[Hashrate] = set()
     deduped: list[Hashrate] = []
     for h in valid:
@@ -266,6 +249,11 @@ def get_existing_bid_options(
 def _create_options(
     inputs: TargetHashrateInputs, config: TargetHashrateConfig
 ) -> list[tuple[CreateAction, ...]]:
+    # If we don't need any more hashrate, the only create option is "no new bid".
+    zero_ph = Hashrate(Decimal(0), HashUnit.PH, TimeUnit.SECOND)
+    if inputs.needed_hashrate == zero_ph:
+        return [()]
+
     speeds: set[Hashrate] = {
         inputs.target * Fraction(f, 100) for f in _NEW_BID_TARGET_FRACTIONS_PERCENT
     }
@@ -325,23 +313,35 @@ def craft_all_possible_plans(
     # bid's list. We start with a single empty combination and, for each bid,
     # extend every existing combination with each of that bid's options. With
     # no existing bids, the result stays as the single empty combination.
+    # Combos whose live (non-cancel) pick count already exceeds _HARD_CAP_BIDS
+    # are pruned: select_best_plan would discard them anyway.
     bid_combos: list[tuple[_PerBidOption, ...]] = [()]
     for options_for_this_bid in options_per_bid:
         next_combos: list[tuple[_PerBidOption, ...]] = []
         for combo_so_far in bid_combos:
+            live_so_far = sum(
+                1 for o in combo_so_far if not isinstance(o, CancelAction)
+            )
             for option in options_for_this_bid:
+                next_live = live_so_far + (0 if isinstance(option, CancelAction) else 1)
+                if next_live > _HARD_CAP_BIDS:
+                    continue
                 next_combos.append((*combo_so_far, option))
         bid_combos = next_combos
 
     create_opts = _create_options(inputs, config)
 
     # Step 3: for each (bid combination, create option) pair, assemble a plan.
+    # Skip pairings whose total live bid count would exceed _HARD_CAP_BIDS.
     plans: list[ReconciliationPlan] = []
     for combo in bid_combos:
         cancels = tuple(o for o in combo if isinstance(o, CancelAction))
         edits = tuple(o for o in combo if isinstance(o, EditAction))
         unchanged = tuple(o for o in combo if isinstance(o, UserBid))
+        live_combo_count = len(edits) + len(unchanged)
         for creates in create_opts:
+            if live_combo_count + len(creates) > _HARD_CAP_BIDS:
+                continue
             plans.append(
                 ReconciliationPlan(
                     cancels=cancels,
@@ -376,12 +376,23 @@ def select_best_plan(
 
     # Acceptable bid-count range: between 1 bid per 2 PH/s of current target
     # (lower bound) and 1 bid per 1 PH/s (upper bound), but never above the
-    # hard cap. When current target is zero, the range collapses to [0, 0].
+    # hard cap. Bounds are integer bid counts. When current target is zero,
+    # the range collapses to [0, 0].
     if current_target_ph > 0:
-        upper_bid_count = min(current_target_ph, Decimal(_HARD_CAP_BIDS))
-        lower_bid_count = min(current_target_ph / Decimal(2), upper_bid_count)
+        upper_bid_count = min(
+            int(current_target_ph.to_integral_value(rounding="ROUND_CEILING")),
+            _HARD_CAP_BIDS,
+        )
+        lower_bid_count = min(
+            int(
+                (current_target_ph / Decimal(2)).to_integral_value(
+                    rounding="ROUND_CEILING"
+                )
+            ),
+            upper_bid_count,
+        )
     else:
-        upper_bid_count = lower_bid_count = Decimal(0)
+        upper_bid_count = lower_bid_count = 0
 
     best_plan: ReconciliationPlan | None = None
     best_score: Decimal | None = None
@@ -426,14 +437,14 @@ def select_best_plan(
             weighted_price_numerator += Decimal(int(price)) * speed
 
         # Score for getting the right hashrate computed like this:
-        # 100_000_000 * (1 - ((%deviation^2) * 2 * is_deviation_the_right_way))
-        # % deviation is the deviation from the target hashrate
-        # deviation is "right" way if it's trending faster towards
-        #   long_term target.
-        # so, if we are UNDER long term targate, and the plan has MORE
-        #   hashrate than CURRENT, it's going THE RIGHT WAY.
+        # 100_000_000 * (1 - %deviation * wrong_way_multiplier)
+        # %deviation is the deviation from the current target hashrate.
+        # wrong_way_multiplier is 1 when the plan moves us faster toward the
+        # long-term target, 2 otherwise.
+        # so, if we are UNDER long term target, and the plan has MORE
+        #   hashrate than CURRENT, it's going THE RIGHT WAY (multiplier 1).
         # if we are UNDER long term target, and the plan has LESS hashrate
-        #   than CURRENt, it's going the WRONG WAY.
+        #   than CURRENT, it's going the WRONG WAY (multiplier 2).
 
         if current_target_ph == 0:
             # No relative-deviation reference; fall back to long_term as the
@@ -448,10 +459,10 @@ def select_best_plan(
         plan_moves_us_faster_toward_long_term = (
             under_long_term and plan_above_current
         ) or (over_long_term and plan_below_current)
-        is_deviation_the_right_way = 1 if plan_moves_us_faster_toward_long_term else 2
+        wrong_way_multiplier = 1 if plan_moves_us_faster_toward_long_term else 2
 
         plan_score += Decimal(100_000_000) * (
-            Decimal(1) - (deviation_pct * is_deviation_the_right_way)
+            Decimal(1) - (deviation_pct * wrong_way_multiplier)
         )
 
         # Bid count score: penalize plans whose bid count falls outside
@@ -461,13 +472,13 @@ def select_best_plan(
         bid_count_distance = max(
             lower_bid_count - plan_bid_count,
             plan_bid_count - upper_bid_count,
-            Decimal(0),
+            0,
         )
         if plan_bid_count == 1:
-            bid_count_distance = max(bid_count_distance, Decimal(1))
+            bid_count_distance = max(bid_count_distance, 1)
         bid_count_denom = current_target_ph if current_target_ph > 0 else Decimal(1)
         plan_score += Decimal(1_000_000) * (
-            Decimal(1) - bid_count_distance / bid_count_denom
+            Decimal(1) - Decimal(bid_count_distance) / bid_count_denom
         )
 
         # Cheap is better than expensive.
@@ -487,10 +498,11 @@ def select_best_plan(
         # Penalty is (10_000 per cooldown) / number of bids
         # Plus an extra 10_000 per each bid that activates BOTH cooldowns
         # Plus the abs(number of price cooldowns - the number of hashrate
-        #   cooldowns) * 1000
+        #   cooldowns) * 10_000
         price_cooldowns_triggered = 0
         speed_cooldowns_triggered = 0
         bids_triggering_both_cooldowns = 0
+        bids_with_new_cooldown = 0
         for edit_action in plan.edits:
             price_decreased = edit_action.new_price < edit_action.bid.price
             speed_decreased = (
@@ -502,6 +514,8 @@ def select_best_plan(
                 speed_cooldowns_triggered += 1
             if price_decreased and speed_decreased:
                 bids_triggering_both_cooldowns += 1
+            if price_decreased or speed_decreased:
+                bids_with_new_cooldown += 1
 
         total_cooldowns = price_cooldowns_triggered + speed_cooldowns_triggered
         cooldown_penalty = Decimal(0)
@@ -520,13 +534,6 @@ def select_best_plan(
         # every existing bid in the plan triggers a new cooldown leave us
         # with no headroom to react next cycle. Flat 5M penalty.
         existing_bids_in_plan = len(plan.edits) + len(plan.unchanged)
-        bids_with_new_cooldown = 0
-        for edit_action in plan.edits:
-            if (
-                edit_action.new_price < edit_action.bid.price
-                or edit_action.new_speed_limit_ph < edit_action.bid.speed_limit_ph
-            ):
-                bids_with_new_cooldown += 1
         if (
             existing_bids_in_plan > 0
             and bids_with_new_cooldown == existing_bids_in_plan
@@ -599,10 +606,10 @@ def set_bids_target(
     Three phases:
         1. Gather inputs: read Ocean 24h, market settings, orderbook, current
            bids (with per-bid cooldown annotations), and the account balance.
-        2. Plan: reconcile toward a single target bid. Cancel all if needed
-           hashrate is zero; create one if no bids exist; else keep the most
-           flexible/largest bid, cancel the rest, and edit/skip the keeper.
-           Cooldowns block decreases only; increases always go through.
+        2. Plan: enumerate every candidate plan via ``craft_all_possible_plans``
+           (cartesian product over per-bid dispositions and a single creation
+           slot, with cooldowns gating decreases) and pick the highest-scoring
+           one via ``select_best_plan``.
         3. Apply: unless `dry_run`, execute the plan.
 
     `now` defaults to the current UTC time; tests inject a fixed value.
