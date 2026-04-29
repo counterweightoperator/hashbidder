@@ -227,7 +227,7 @@ class TestHashrate:
             assert result.value == Decimal("15")
 
         def test_rmul_matches_mul(self) -> None:
-            """Left-multiplying by a Fraction yields the same result as right-multiplying."""
+            """Left-multiplying by a Fraction matches right-multiplying."""
             h = Hashrate(Decimal("7"), HashUnit.GH, TimeUnit.SECOND)
             assert Fraction(2, 3) * h == h * Fraction(2, 3)
 
@@ -295,7 +295,7 @@ class TestHashrate:
 
         @given(hashrates(), positive_fractions())
         def test_div_is_inverse_of_mul(self, h: Hashrate, scalar: Fraction) -> None:
-            """h / scalar equals h * (1/scalar)."""
+            """Hashrate / scalar equals h * (1/scalar)."""
             assert _within_tolerance(
                 (h / scalar)._as_hashes_per_second(),
                 (h * (Fraction(1) / scalar))._as_hashes_per_second(),
