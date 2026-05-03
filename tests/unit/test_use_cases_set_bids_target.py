@@ -83,14 +83,14 @@ class TestSetBidsTarget:
         inputs = result.inputs
         assert inputs.ocean_24h == _ph_s("5")
         assert inputs.target == _ph_s("10")
-        assert inputs.needed_hashrate == _ph_s("45")
+        assert inputs.needed_hashrate == _ph_s("15")
         assert inputs.target_price.sats == Sats(801_000)
 
         plan = result.set_bids_result.plan
         assert len(plan.creates) == 1
         create = plan.creates[0]
         assert create.config.price.sats == Sats(801_000)
-        assert create.config.speed_limit == _ph_s("45")
+        assert create.config.speed_limit == _ph_s("15")
 
     def test_non_manageable_bids_flow_to_skipped_bids(self) -> None:
         """PAUSED/FROZEN bids bypass planning and pass through for display."""

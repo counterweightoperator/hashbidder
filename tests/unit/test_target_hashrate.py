@@ -33,31 +33,31 @@ class TestComputeNeededHashrate:
     """Tests for compute_needed_hashrate."""
 
     def test_below_target(self) -> None:
-        """Current 5, target 10 → needed 45 (= 8*10 - 7*5)."""
+        """Current 5, target 10 → needed 15 (= 2*10 - 5)."""
         result = compute_needed_hashrate(
             target=Hashrate(Decimal("10"), HashUnit.PH, TimeUnit.SECOND),
             current_24h=Hashrate(Decimal("5"), HashUnit.PH, TimeUnit.SECOND),
         )
-        assert result == Hashrate(Decimal("45"), HashUnit.PH, TimeUnit.SECOND)
+        assert result == Hashrate(Decimal("15"), HashUnit.PH, TimeUnit.SECOND)
 
     def test_at_target_keeps_running(self) -> None:
-        """Current equal to target → keep running at target (8*10 - 7*10 = 10)."""
+        """Current equal to target → keep running at target (2*10 - 10 = 10)."""
         result = compute_needed_hashrate(
             target=Hashrate(Decimal("10"), HashUnit.PH, TimeUnit.SECOND),
             current_24h=Hashrate(Decimal("10"), HashUnit.PH, TimeUnit.SECOND),
         )
         assert result == Hashrate(Decimal("10"), HashUnit.PH, TimeUnit.SECOND)
 
-    def test_above_target_clamps_to_zero(self) -> None:
-        """Target 12, current 15 → 0 (8*12 - 7*15 < 0; can't go negative)."""
+    def test_above_target_partial(self) -> None:
+        """Target 12, current 15 → 9 (2*12 - 15)."""
         result = compute_needed_hashrate(
             target=Hashrate(Decimal("12"), HashUnit.PH, TimeUnit.SECOND),
             current_24h=Hashrate(Decimal("15"), HashUnit.PH, TimeUnit.SECOND),
         )
-        assert result == Hashrate(Decimal("0"), HashUnit.PH, TimeUnit.SECOND)
+        assert result == Hashrate(Decimal("9"), HashUnit.PH, TimeUnit.SECOND)
 
     def test_far_above_target_clamps_to_zero(self) -> None:
-        """Current >= (8/7)*target → 0 (can't go negative)."""
+        """Current >= 2*target → 0 (can't go negative)."""
         result = compute_needed_hashrate(
             target=Hashrate(Decimal("10"), HashUnit.PH, TimeUnit.SECOND),
             current_24h=Hashrate(Decimal("25"), HashUnit.PH, TimeUnit.SECOND),

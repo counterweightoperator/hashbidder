@@ -374,7 +374,7 @@ def select_best_plan(
     under_long_term = current_target_ph < long_term_ph
     over_long_term = current_target_ph > long_term_ph
 
-    # Acceptable bid-count range: between 1 bid per 2 PH/s of current target
+    # Acceptable bid-count range: between 1 bid per 3 PH/s of current target
     # (lower bound) and 1 bid per 1 PH/s (upper bound), but never above the
     # hard cap. Bounds are integer bid counts. When current target is zero,
     # the range collapses to [0, 0].
@@ -385,7 +385,7 @@ def select_best_plan(
         )
         lower_bid_count = min(
             int(
-                (current_target_ph / Decimal(2)).to_integral_value(
+                (current_target_ph / Decimal(3)).to_integral_value(
                     rounding="ROUND_CEILING"
                 )
             ),
